@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Barcode Scanner</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📷 Barcode Scanner</h1>
+        </div>
+
+        <div class="scanner-section">
+            <div class="scan-controls">
+                <button id="scanBtn" class="scan-btn" onclick="toggleScanning()">
+                    Start Scanning
+                </button>
+            </div>
+
+            <div class="camera-container" id="cameraContainer">
+                <video id="camera" autoplay muted playsinline></video>
+                <div class="scan-overlay">
+                    <div class="scan-target"></div>
+                </div>
+                <button class="close-btn" onclick="stopScanning()">✕</button>
+            </div>
+
+            <div id="status" class="status status-info">
+                Click "Start Scanning" to begin
+            </div>
+        </div>
+
+        <div class="results-section">
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalScans">0</div>
+                    <div class="stat-label">Total Scans</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="todayScans">0</div>
+                    <div class="stat-label">Today's Scans</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="foundProducts">0</div>
+                    <div class="stat-label">Products Found</div>
+                </div>
+            </div>
+
+            <button class="clear-btn" onclick="clearHistory()">Clear History</button>
+
+            <h3>📋 Recent Scans</h3>
+            <div id="results">
+                <div class="empty-state">
+                    <div>📱</div>
+                    <div>No scans yet - Start scanning to see results</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>

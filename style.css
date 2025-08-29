@@ -1,0 +1,299 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f8f9fa;
+    color: #333;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.header {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.header h1 {
+    font-size: 1.8rem;
+    color: #2c3e50;
+    font-weight: 600;
+}
+
+.scanner-section {
+    background: white;
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+.scan-controls {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.scan-btn {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+.scan-btn:hover {
+    background: #0056b3;
+}
+
+.scan-btn:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+}
+
+.camera-container {
+    position: relative;
+    max-width: 100%;
+    margin: 0 auto;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #000;
+    display: none;
+}
+
+.camera-container.active {
+    display: block;
+}
+
+#camera {
+    width: 100%;
+    height: 300px;
+    object-fit: cover;
+}
+
+.scan-overlay {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    right: 20px;
+    bottom: 20px;
+    border: 2px dashed rgba(255, 255, 255, 0.7);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.scan-target {
+    width: 250px;
+    height: 100px;
+    border: 3px solid #007bff;
+    border-radius: 8px;
+    background: rgba(0, 123, 255, 0.1);
+}
+
+.close-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(220, 53, 69, 0.9);
+    color: white;
+    border: none;
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 18px;
+}
+
+.status {
+    padding: 12px;
+    margin: 15px 0;
+    border-radius: 6px;
+    text-align: center;
+}
+
+.status-info {
+    background: #e3f2fd;
+    color: #1565c0;
+    border: 1px solid #bbdefb;
+}
+
+.status-success {
+    background: #e8f5e8;
+    color: #2e7d32;
+    border: 1px solid #c8e6c9;
+}
+
+.status-error {
+    background: #ffebee;
+    color: #c62828;
+    border: 1px solid #ffcdd2;
+}
+
+.results-section {
+    background: white;
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.stat-card {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+}
+
+.stat-number {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #007bff;
+}
+
+.stat-label {
+    color: #6c757d;
+    margin-top: 5px;
+}
+
+.clear-btn {
+    background: #dc3545;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    margin-bottom: 20px;
+}
+
+.scan-result {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 15px;
+}
+
+.scan-result.latest {
+    border-color: #28a745;
+    background: #f8fff9;
+}
+
+.result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.result-type {
+    background: #007bff;
+    color: white;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.result-time {
+    color: #6c757d;
+    font-size: 13px;
+}
+
+.barcode-data {
+    font-family: 'Courier New', monospace;
+    background: #e9ecef;
+    padding: 12px;
+    border-radius: 6px;
+    font-weight: 600;
+    color: #495057;
+    word-break: break-all;
+    margin: 10px 0;
+}
+
+.product-info {
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 15px;
+    margin-top: 12px;
+}
+
+.product-name {
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 6px;
+}
+
+.product-price {
+    color: #28a745;
+    font-weight: 700;
+    font-size: 1.2rem;
+    margin-bottom: 8px;
+}
+
+.product-details {
+    color: #6c757d;
+    font-size: 14px;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 40px;
+    color: #6c757d;
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+    .container {
+        padding: 15px;
+    }
+
+    .header,
+    .scanner-section,
+    .results-section {
+        padding: 20px;
+        margin-bottom: 15px;
+    }
+
+    .header h1 {
+        font-size: 1.5rem;
+    }
+
+    #camera {
+        height: 250px;
+    }
+
+    .scan-target {
+        width: 200px;
+        height: 80px;
+    }
+
+    .stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
