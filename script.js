@@ -29,6 +29,19 @@ const mockProducts = {
         price: '$6.49',
         brand: 'Pure Greek',
         description: '0% fat Greek style yogurt, 500g container'
+    },
+    // Add more test barcodes for better testing
+    '012000050084': {
+        name: 'Coca Cola Classic',
+        price: '$1.99',
+        brand: 'Coca Cola',
+        description: '12 fl oz can, classic taste'
+    },
+    '028400064057': {
+        name: 'Doritos Nacho Cheese',
+        price: '$3.49',
+        brand: 'Frito-Lay',
+        description: 'Nacho cheese flavored tortilla chips, 9.25 oz'
     }
 };
 
@@ -38,6 +51,8 @@ let stream = null;
 let scanHistory = JSON.parse(localStorage.getItem('scanHistory') || '[]');
 let lastScanCode = '';
 let lastScanTime = 0;
+let codeReader = null;
+let animationId = null;
 
 // DOM elements
 const scanBtn = document.getElementById('scanBtn');
@@ -48,9 +63,40 @@ const results = document.getElementById('results');
 
 // Initialize
 document.addEventListener('DOMContentLoaded', function () {
+    initializeZXing();
     updateStats();
     displayResults();
 });
+
+function initializeZXing() {
+    try {
+        // Initialize ZXing with multiple format support
+        codeReader = new ZXing.BrowserMultiFormatReader();
+
+        // Configure hints for better accuracy
+        const hints = new Map();
+        hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+            ZXing.BarcodeFormat.UPC_A,
+            ZXing.BarcodeFormat.UPC_E,
+            ZXing.BarcodeFormat.EAN_13,
+            ZXing.BarcodeFormat.EAN_8,
+            ZXing.BarcodeFormat.CODE_128,
+            ZXing.BarcodeFormat.CODE_39,
+            ZXing.BarcodeFormat.ITF,
+            ZXing.BarcodeFormat.RSS_14,
+            ZXing.BarcodeFormat.CODABAR
+        ]);
+        hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+        hints.set(ZXing.DecodeHintType.ALSO_INVERTED, true);
+
+        codeReader.setHints(hints);
+        console.log('ZXing initialized with enhanced settings');
+
+    } catch (error) {
+        console.error('ZXing initialization failed:', error);
+        updateStatus('❌ Scanner initialization failed', 'error');
+    }
+}
 
 async function toggleScanning() {
     if (isScanning) {
@@ -64,23 +110,45 @@ async function startScanning() {
     if (isScanning) return;
 
     try {
-        updateStatus('Requesting camera access...', 'info');
+        updateStatus('🚀 Initializing professional scanner...', 'info');
         scanBtn.disabled = true;
         scanBtn.textContent = 'Starting...';
 
-        // Simplified camera constraints for better mobile compatibility
+        // Get available video devices
+        const videoDevices = await codeReader.listVideoInputDevices();
+        console.log('Available cameras:', videoDevices);
+
+        // Prefer back camera for barcode scanning
+        let selectedDevice = videoDevices[0];
+        for (let device of videoDevices) {
+            if (device.label.toLowerCase().includes('back') ||
+                device.label.toLowerCase().includes('rear') ||
+                device.label.toLowerCase().includes('environment')) {
+                selectedDevice = device;
+                break;
+            }
+        }
+
+        console.log('Selected camera:', selectedDevice);
+
+        // Configure high-quality video constraints
         const constraints = {
             video: {
-                facingMode: 'environment',  // Use back camera
-                width: { ideal: 640 },      // Lower resolution for better performance
-                height: { ideal: 480 }
+                deviceId: selectedDevice ? selectedDevice.deviceId : undefined,
+                width: { ideal: 1920, min: 1280 },
+                height: { ideal: 1080, min: 720 },
+                frameRate: { ideal: 30 },
+                focusMode: 'continuous',
+                autoGainControl: true,
+                noiseSuppression: true,
+                echoCancellation: false
             }
         };
 
+        // Start camera stream
         stream = await navigator.mediaDevices.getUserMedia(constraints);
         camera.srcObject = stream;
 
-        // Wait for video to be ready
         await new Promise(resolve => {
             camera.onloadedmetadata = resolve;
         });
@@ -91,103 +159,78 @@ async function startScanning() {
         cameraContainer.classList.add('active');
         scanBtn.textContent = 'Stop Scanning';
         scanBtn.disabled = false;
-
-        // Initialize scanner with improved settings
-        await initializeScanner();
-
         isScanning = true;
-        updateStatus('📷 Scanning active - Position barcode in the blue frame', 'success');
+
+        // Start continuous scanning
+        startContinuousScanning();
+
+        updateStatus('🎯 Professional scanner active - Position barcode clearly', 'success');
 
     } catch (error) {
-        console.error('Camera access error:', error);
-        updateStatus('❌ Camera access denied. Please allow camera permissions.', 'error');
+        console.error('Scanner start failed:', error);
+        updateStatus('❌ Camera access failed. Check permissions.', 'error');
         resetScanButton();
     }
 }
 
-function initializeScanner() {
-    return new Promise((resolve, reject) => {
-        // Simplified, more reliable configuration
-        const config = {
-            inputStream: {
-                name: "Live",
-                type: "LiveStream",
-                target: camera
-            },
-            decoder: {
-                readers: [
-                    "code_128_reader",
-                    "ean_reader",
-                    "ean_8_reader",
-                    "upc_reader",
-                    "upc_e_reader"
-                ],
-                multiple: false
-            },
-            locate: true,
-            locator: {
-                patchSize: "medium",
-                halfSample: true  // Better performance on mobile
-            },
-            numOfWorkers: 2,
-            frequency: 10,  // Reduced frequency for mobile performance
-            area: {
-                top: "30%",
-                right: "30%",
-                left: "30%",
-                bottom: "30%"
-            }
-        };
+function startContinuousScanning() {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
 
-        Quagga.init(config, function (err) {
-            if (err) {
-                console.error('Quagga initialization error:', err);
-                reject(err);
-                return;
+    const scanFrame = () => {
+        if (!isScanning || !camera.videoWidth || !camera.videoHeight) {
+            if (isScanning) {
+                animationId = requestAnimationFrame(scanFrame);
+            }
+            return;
+        }
+
+        // Set canvas size to match video
+        canvas.width = camera.videoWidth;
+        canvas.height = camera.videoHeight;
+
+        // Draw current video frame to canvas
+        ctx.drawImage(camera, 0, 0, canvas.width, canvas.height);
+
+        try {
+            // Get image data for scanning
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+            // Try to decode barcode from current frame
+            const result = codeReader.decodeFromImageData(imageData);
+
+            if (result) {
+                const code = result.getText();
+                const format = result.getBarcodeFormat();
+
+                console.log('✅ Barcode detected:', code, ZXing.BarcodeFormat[format]);
+                handleScanResult(code, ZXing.BarcodeFormat[format]);
             }
 
-            console.log('Quagga initialized successfully');
-            Quagga.start();
+        } catch (error) {
+            // No barcode found in this frame - continue scanning
+            if (error.name !== 'NotFoundException') {
+                console.log('Scan error:', error.name);
+            }
+        }
 
-            // Simplified detection with lower threshold
-            Quagga.onDetected(function (result) {
-                if (!isScanning) return;
+        // Continue scanning
+        if (isScanning) {
+            animationId = requestAnimationFrame(scanFrame);
+        }
+    };
 
-                const code = result.codeResult.code;
-                const format = result.codeResult.format;
-
-                console.log('Barcode detected:', code, format);
-
-                // More lenient detection - any valid barcode
-                if (code && code.length >= 8) {
-                    handleScanResult(code, format);
-                }
-            });
-
-            // Add processing event for debugging
-            Quagga.onProcessed(function (result) {
-                if (!result) return;
-
-                // Log processing attempts (for debugging)
-                if (result.codeResult) {
-                    console.log('Processing result:', result.codeResult.code);
-                }
-            });
-
-            resolve();
-        });
-    });
+    // Start scanning loop
+    animationId = requestAnimationFrame(scanFrame);
 }
 
 function stopScanning() {
     isScanning = false;
 
-    // Stop Quagga
-    try {
-        Quagga.stop();
-        console.log('Quagga stopped');
-    } catch (e) {
-        console.log('Quagga stop error:', e);
+    // Cancel animation frame
+    if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
     }
 
     // Stop camera stream
@@ -196,11 +239,20 @@ function stopScanning() {
         stream = null;
     }
 
+    // Reset camera
+    if (codeReader) {
+        try {
+            codeReader.reset();
+        } catch (e) {
+            console.log('CodeReader reset error:', e);
+        }
+    }
+
     // Reset UI
     camera.srcObject = null;
     cameraContainer.classList.remove('active');
     resetScanButton();
-    updateStatus('Scanner stopped', 'info');
+    updateStatus('🛑 Scanner stopped', 'info');
 }
 
 function resetScanButton() {
@@ -211,27 +263,22 @@ function resetScanButton() {
 function handleScanResult(code, format) {
     const now = Date.now();
 
-    // Prevent rapid duplicate scans (reduced time)
-    if (code === lastScanCode && (now - lastScanTime) < 2000) {
+    // Prevent rapid duplicate scans
+    if (code === lastScanCode && (now - lastScanTime) < 1500) {
         return;
     }
 
     lastScanCode = code;
     lastScanTime = now;
 
-    // Vibration feedback on mobile
-    if ('vibrate' in navigator) {
-        navigator.vibrate([200, 100, 200]);
-    }
-
-    // Audio feedback (optional)
-    playBeep();
+    // Enhanced feedback
+    provideFeedback();
 
     // Create scan record
     const scanData = {
         id: now,
         code: code,
-        format: format.toUpperCase(),
+        format: format || 'UNKNOWN',
         timestamp: new Date().toISOString(),
         product: mockProducts[code] || null
     };
@@ -239,41 +286,99 @@ function handleScanResult(code, format) {
     // Add to history
     scanHistory.unshift(scanData);
 
-    // Keep only last 25 scans
-    scanHistory = scanHistory.slice(0, 25);
+    // Keep only last 50 scans for professional use
+    scanHistory = scanHistory.slice(0, 50);
 
     // Save to storage
     localStorage.setItem('scanHistory', JSON.stringify(scanHistory));
 
-    // Update UI
+    // Update UI immediately
     updateStats();
     displayResults();
 
-    // Show result
-    const productInfo = scanData.product ? scanData.product.name : 'Unknown Product';
-    updateStatus(`✅ Successfully scanned: ${productInfo} (${code})`, 'success');
+    // Show detailed result
+    const productInfo = scanData.product ? scanData.product.name : 'Product Not Found';
+    const formatDisplay = format ? format.replace(/_/g, ' ') : 'Unknown Format';
 
-    console.log(`Detected barcode: ${code} (${format})`);
+    updateStatus(`✅ ${formatDisplay}: ${productInfo} (${code})`, 'success');
+
+    console.log(`🎯 Professional scan: ${code} [${format}]`);
 }
 
-function playBeep() {
-    // Create audio feedback for successful scan
+function provideFeedback() {
+    // Enhanced vibration pattern
+    if ('vibrate' in navigator) {
+        navigator.vibrate([100, 50, 100, 50, 200]);
+    }
+
+    // Professional beep sound
+    playProfessionalBeep();
+
+    // Visual feedback
+    flashScreen();
+}
+
+function playProfessionalBeep() {
     try {
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+        // Create a more professional beep (like store scanners)
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
+        const filterNode = audioContext.createBiquadFilter();
 
-        oscillator.connect(gainNode);
+        oscillator.connect(filterNode);
+        filterNode.connect(gainNode);
         gainNode.connect(audioContext.destination);
 
-        oscillator.frequency.value = 800;
-        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+        // Professional scanner frequency
+        oscillator.frequency.setValueAtTime(1000, audioContext.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(1200, audioContext.currentTime + 0.1);
+
+        // Filter for cleaner sound
+        filterNode.type = 'lowpass';
+        filterNode.frequency.setValueAtTime(2000, audioContext.currentTime);
+
+        // Professional volume curve
+        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.4, audioContext.currentTime + 0.02);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
 
         oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.3);
+        oscillator.stop(audioContext.currentTime + 0.2);
+
     } catch (e) {
         console.log('Audio feedback not available');
+    }
+}
+
+function flashScreen() {
+    // Quick green flash for successful scan
+    const flash = document.createElement('div');
+    flash.style.cssText = `
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(40, 167, 69, 0.3);
+        z-index: 9999;
+        pointer-events: none;
+        animation: flash 0.3s ease-out;
+    `;
+
+    document.body.appendChild(flash);
+    setTimeout(() => flash.remove(), 300);
+
+    // Add CSS animation if not exists
+    if (!document.querySelector('#flash-animation')) {
+        const style = document.createElement('style');
+        style.id = 'flash-animation';
+        style.textContent = `
+            @keyframes flash {
+                0% { opacity: 0; }
+                50% { opacity: 1; }
+                100% { opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
     }
 }
 
@@ -281,8 +386,11 @@ function displayResults() {
     if (scanHistory.length === 0) {
         results.innerHTML = `
             <div class="empty-state">
-                <div style="font-size: 3rem; margin-bottom: 15px;">📱</div>
-                <div>No scans yet - Start scanning to see results</div>
+                <div style="font-size: 3rem; margin-bottom: 15px;">🛒</div>
+                <div>Professional Scanner Ready</div>
+                <div style="font-size: 14px; margin-top: 10px; color: #6c757d;">
+                    Supports UPC, EAN, Code 128, and more
+                </div>
             </div>
         `;
         return;
@@ -297,13 +405,13 @@ function displayResults() {
         html += `
             <div class="scan-result ${isLatest ? 'latest' : ''}">
                 <div class="result-header">
-                    <span class="result-type">${scan.format}</span>
+                    <span class="result-type">${scan.format.replace(/_/g, ' ')}</span>
                     <span class="result-time">${timeString}</span>
                 </div>
                 <div class="barcode-data">${scan.code}</div>
                 ${scan.product ? `
                     <div class="product-info">
-                        <div class="product-name">${scan.product.name}</div>
+                        <div class="product-name">✅ ${scan.product.name}</div>
                         <div class="product-price">${scan.product.price}</div>
                         <div class="product-details">
                             <strong>Brand:</strong> ${scan.product.brand}<br>
@@ -312,8 +420,11 @@ function displayResults() {
                     </div>
                 ` : `
                     <div class="product-info">
-                        <div style="color: #6c757d; font-style: italic;">
-                            Product information not available
+                        <div style="color: #dc3545; font-weight: 600;">
+                            ⚠️ Product not in database
+                        </div>
+                        <div style="color: #6c757d; font-size: 14px; margin-top: 5px;">
+                            Barcode scanned successfully but no product information available
                         </div>
                     </div>
                 `}
@@ -338,12 +449,12 @@ function updateStats() {
 }
 
 function clearHistory() {
-    if (confirm('Are you sure you want to clear all scan history?')) {
+    if (confirm('Clear all scan history? This cannot be undone.')) {
         scanHistory = [];
         localStorage.removeItem('scanHistory');
         updateStats();
         displayResults();
-        updateStatus('Scan history cleared', 'info');
+        updateStatus('📋 History cleared', 'info');
     }
 }
 
@@ -352,28 +463,37 @@ function updateStatus(message, type = 'info') {
     status.textContent = message;
 }
 
-// Handle page unload cleanup
+// Enhanced cleanup
 window.addEventListener('beforeunload', function () {
     if (isScanning) {
         stopScanning();
     }
 });
 
-// Handle mobile app lifecycle
+// Professional mobile handling
 document.addEventListener('visibilitychange', function () {
     if (document.hidden && isScanning) {
-        console.log('App backgrounded');
-    } else if (!document.hidden && stream && !isScanning) {
-        console.log('App resumed');
+        console.log('📱 App backgrounded - pausing scanner');
+        // Optionally pause scanning to save battery
+    } else if (!document.hidden && !isScanning && stream) {
+        console.log('📱 App resumed');
     }
 });
 
-// Debug function - can be removed in production
-function debugScanner() {
-    console.log('Scanner state:', {
+// Debug and performance monitoring
+function getPerformanceStats() {
+    return {
         isScanning,
         hasStream: !!stream,
         cameraReady: camera.readyState,
-        scanHistory: scanHistory.length
-    });
+        scanHistory: scanHistory.length,
+        lastScan: lastScanCode,
+        memoryUsage: performance.memory ? {
+            used: Math.round(performance.memory.usedJSHeapSize / 1048576) + 'MB',
+            total: Math.round(performance.memory.totalJSHeapSize / 1048576) + 'MB'
+        } : 'Not available'
+    };
 }
+
+// Expose for debugging
+window.scannerDebug = getPerformanceStats;
