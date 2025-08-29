@@ -68,13 +68,12 @@ async function startScanning() {
         scanBtn.disabled = true;
         scanBtn.textContent = 'Starting...';
 
-        // Enhanced camera configuration for better accuracy
+        // Simplified camera constraints for better mobile compatibility
         const constraints = {
             video: {
-                facingMode: { ideal: 'environment' },
-                width: { ideal: 1280, min: 640 },
-                height: { ideal: 720, min: 480 },
-                frameRate: { ideal: 30 }
+                facingMode: 'environment',  // Use back camera
+                width: { ideal: 640 },      // Lower resolution for better performance
+                height: { ideal: 480 }
             }
         };
 
@@ -93,8 +92,8 @@ async function startScanning() {
         scanBtn.textContent = 'Stop Scanning';
         scanBtn.disabled = false;
 
-        // Initialize enhanced scanner configuration
-        await initializeAccurateScanner();
+        // Initialize scanner with improved settings
+        await initializeScanner();
 
         isScanning = true;
         updateStatus('📷 Scanning active - Position barcode in the blue frame', 'success');
@@ -106,58 +105,37 @@ async function startScanning() {
     }
 }
 
-function initializeAccurateScanner() {
+function initializeScanner() {
     return new Promise((resolve, reject) => {
-        // Enhanced configuration for better accuracy
+        // Simplified, more reliable configuration
         const config = {
             inputStream: {
                 name: "Live",
                 type: "LiveStream",
-                target: camera,
-                constraints: {
-                    width: { min: 640, ideal: 1280 },
-                    height: { min: 480, ideal: 720 }
-                }
+                target: camera
             },
             decoder: {
                 readers: [
                     "code_128_reader",
                     "ean_reader",
                     "ean_8_reader",
-                    "code_39_reader",
                     "upc_reader",
-                    "upc_e_reader",
-                    "codabar_reader"
+                    "upc_e_reader"
                 ],
-                // Enhanced accuracy settings
-                multiple: false,
-                debug: {
-                    showCanvas: false,
-                    showPatches: false,
-                    showFoundPatches: false,
-                    showSkeleton: false,
-                    showLabels: false,
-                    showPatchLabels: false,
-                    showRemainingPatchLabels: false,
-                    boxFromPatches: {
-                        showTransformed: false,
-                        showTransformedBox: false,
-                        showBB: false
-                    }
-                }
+                multiple: false
             },
             locate: true,
             locator: {
-                patchSize: "large", // Better for accuracy
-                halfSample: false   // Full sampling for accuracy
+                patchSize: "medium",
+                halfSample: true  // Better performance on mobile
             },
-            numOfWorkers: Math.min(navigator.hardwareConcurrency || 2, 4),
-            frequency: 20, // Higher frequency for real-time feel
+            numOfWorkers: 2,
+            frequency: 10,  // Reduced frequency for mobile performance
             area: {
-                top: "20%",
-                right: "20%",
-                left: "20%",
-                bottom: "20%"
+                top: "30%",
+                right: "30%",
+                left: "30%",
+                bottom: "30%"
             }
         };
 
@@ -168,39 +146,31 @@ function initializeAccurateScanner() {
                 return;
             }
 
+            console.log('Quagga initialized successfully');
             Quagga.start();
 
-            // Multiple detection confirmations for accuracy
-            let detectionBuffer = [];
-            const requiredConfirmations = 2;
-
+            // Simplified detection with lower threshold
             Quagga.onDetected(function (result) {
                 if (!isScanning) return;
 
                 const code = result.codeResult.code;
                 const format = result.codeResult.format;
-                const confidence = result.codeResult.startInfo.error;
 
-                // Only accept high-confidence results
-                if (confidence > 0.15) return;
+                console.log('Barcode detected:', code, format);
 
-                // Add to detection buffer
-                detectionBuffer.push({ code, format, confidence });
-
-                // Keep only recent detections
-                if (detectionBuffer.length > requiredConfirmations) {
-                    detectionBuffer = detectionBuffer.slice(-requiredConfirmations);
+                // More lenient detection - any valid barcode
+                if (code && code.length >= 8) {
+                    handleScanResult(code, format);
                 }
+            });
 
-                // Check for consistent detections
-                if (detectionBuffer.length >= requiredConfirmations) {
-                    const consistentCode = detectionBuffer[0].code;
-                    const allMatch = detectionBuffer.every(d => d.code === consistentCode);
+            // Add processing event for debugging
+            Quagga.onProcessed(function (result) {
+                if (!result) return;
 
-                    if (allMatch && consistentCode !== lastScanCode) {
-                        handleScanResult(consistentCode, format);
-                        detectionBuffer = []; // Clear buffer after successful scan
-                    }
+                // Log processing attempts (for debugging)
+                if (result.codeResult) {
+                    console.log('Processing result:', result.codeResult.code);
                 }
             });
 
@@ -215,6 +185,7 @@ function stopScanning() {
     // Stop Quagga
     try {
         Quagga.stop();
+        console.log('Quagga stopped');
     } catch (e) {
         console.log('Quagga stop error:', e);
     }
@@ -240,8 +211,8 @@ function resetScanButton() {
 function handleScanResult(code, format) {
     const now = Date.now();
 
-    // Prevent rapid duplicate scans
-    if (code === lastScanCode && (now - lastScanTime) < 3000) {
+    // Prevent rapid duplicate scans (reduced time)
+    if (code === lastScanCode && (now - lastScanTime) < 2000) {
         return;
     }
 
@@ -250,8 +221,11 @@ function handleScanResult(code, format) {
 
     // Vibration feedback on mobile
     if ('vibrate' in navigator) {
-        navigator.vibrate(200);
+        navigator.vibrate([200, 100, 200]);
     }
+
+    // Audio feedback (optional)
+    playBeep();
 
     // Create scan record
     const scanData = {
@@ -277,9 +251,30 @@ function handleScanResult(code, format) {
 
     // Show result
     const productInfo = scanData.product ? scanData.product.name : 'Unknown Product';
-    updateStatus(`✅ Successfully scanned: ${productInfo}`, 'success');
+    updateStatus(`✅ Successfully scanned: ${productInfo} (${code})`, 'success');
 
     console.log(`Detected barcode: ${code} (${format})`);
+}
+
+function playBeep() {
+    // Create audio feedback for successful scan
+    try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        oscillator.frequency.value = 800;
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.3);
+    } catch (e) {
+        console.log('Audio feedback not available');
+    }
 }
 
 function displayResults() {
@@ -367,10 +362,18 @@ window.addEventListener('beforeunload', function () {
 // Handle mobile app lifecycle
 document.addEventListener('visibilitychange', function () {
     if (document.hidden && isScanning) {
-        // Pause scanning when app goes to background
         console.log('App backgrounded');
     } else if (!document.hidden && stream && !isScanning) {
-        // Resume if camera was active
         console.log('App resumed');
     }
 });
+
+// Debug function - can be removed in production
+function debugScanner() {
+    console.log('Scanner state:', {
+        isScanning,
+        hasStream: !!stream,
+        cameraReady: camera.readyState,
+        scanHistory: scanHistory.length
+    });
+}
