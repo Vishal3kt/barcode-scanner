@@ -1395,13 +1395,20 @@
         function decodeCode128Bars(bars) {
             if (!bars || bars.length < 20) return null;
 
-            // Simplified Code-128 decoding - for demo purposes
-            return "01234567890abcdefg"; // Return sample code for now
+            // This is a simplified detection - real Code-128 decoding is very complex
+            // For now, we'll only detect if there's a valid bar pattern structure
+            // but return null since we can't actually decode without full implementation
+
+            console.log('Code-128 pattern detected but decoding not fully implemented');
+            return null; // Return null - let QuaggaJS handle real decoding
         }
 
         function decodeEANBars(bars) {
             if (!bars || bars.length < 30) return null;
-            return "8901030899799"; // Return sample EAN for now
+
+            // Similar to Code-128 - pattern detection only, no real decoding
+            console.log('EAN pattern detected but decoding not fully implemented');
+            return null; // Return null - let QuaggaJS handle real decoding
         }
 
         function getPixelBrightness(imageData, x, y, width) {
