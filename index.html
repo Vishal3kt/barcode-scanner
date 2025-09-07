@@ -529,18 +529,75 @@
         let scanningLoop = null;
         let quaggaInitialized = false;
 
-        // Initialize application
+        // Initialize application with mobile debugging
         document.addEventListener('DOMContentLoaded', async function () {
             console.log('Mobile Barcode Scanner initializing...');
 
+            updateDebugInfo();
             checkBrowserSupport();
             setupDragAndDrop();
 
             document.getElementById('manualInput').focus();
             updateStatusBar('Mobile scanner ready - Choose scanning method');
 
+            // Mobile-specific initialization
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            if (isMobile) {
+                console.log('Mobile device detected - enabling mobile optimizations');
+                document.getElementById('debugPanel').style.display = 'block';
+                updateDebugInfo();
+            }
+
             console.log('Mobile scanner initialized');
         });
+
+        // Debug functions for mobile troubleshooting
+        function updateDebugInfo() {
+            const isSecure = location.protocol === 'https:' || location.hostname === 'localhost';
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+            document.getElementById('debugBrowser').innerHTML = `
+                Browser: ${navigator.userAgent.split(' ').slice(-2).join(' ')}<br>
+                Mobile: ${isMobile ? 'Yes' : 'No'} | Secure: ${isSecure ? 'Yes' : 'No'}<br>
+                Screen: ${screen.width}x${screen.height} | Viewport: ${window.innerWidth}x${window.innerHeight}
+            `;
+
+            document.getElementById('debugCamera').innerHTML = `
+                Camera API: ${!!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) ? 'Available' : 'Not Available'}<br>
+                Stream: ${currentStream ? 'Active' : 'Inactive'} | Face Mode: ${currentFacingMode}
+            `;
+
+            const video = document.getElementById('scanner-video');
+            document.getElementById('debugVideo').innerHTML = `
+                Ready State: ${video ? video.readyState : 'N/A'}<br>
+                Dimensions: ${video ? `${video.videoWidth}x${video.videoHeight}` : 'N/A'}<br>
+                Display: ${video ? `${video.clientWidth}x${video.clientHeight}` : 'N/A'}
+            `;
+
+            document.getElementById('debugScanning').innerHTML = `
+                Active: ${cameraActive ? 'Yes' : 'No'} | Paused: ${scanningPaused ? 'Yes' : 'No'}<br>
+                Quagga: ${quaggaInitialized ? 'Yes' : 'No'} | Loop: ${scanningLoop ? 'Yes' : 'No'}<br>
+                Detections: ${detectionCount} | Last: ${lastDetection || 'None'}
+            `;
+        }
+
+        function toggleDebugPanel() {
+            const panel = document.getElementById('debugPanel');
+            if (panel.style.display === 'none') {
+                panel.style.display = 'block';
+                updateDebugInfo();
+                // Update debug info every 2 seconds when visible
+                setInterval(updateDebugInfo, 2000);
+            } else {
+                panel.style.display = 'none';
+            }
+        }
+
+        function logError(error, context) {
+            console.error(`${context}:`, error);
+            const errorInfo = `${context}: ${error.message || error}`;
+            document.getElementById('debugErrors').innerHTML = errorInfo;
+        }
 
         // Check browser support
         function checkBrowserSupport() {
