@@ -708,17 +708,28 @@
                 showStatus('Starting camera...', 'loading');
                 updateStatusBar('Requesting camera permission...');
 
-                // More flexible constraints for mobile compatibility
+                // Enhanced constraints for better mobile back camera performance
                 const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
-                const constraints = {
+                let constraints = {
                     video: {
                         facingMode: currentFacingMode,
-                        width: isMobile ? { ideal: 640, min: 320, max: 1280 } : { ideal: 1280, min: 320 },
-                        height: isMobile ? { ideal: 480, min: 240, max: 720 } : { ideal: 720, min: 240 }
+                        width: { ideal: 1280, min: 320, max: 1920 },
+                        height: { ideal: 720, min: 240, max: 1080 }
                     },
                     audio: false
                 };
+
+                // Enhanced mobile constraints for back camera focusing
+                if (isMobile && currentFacingMode === 'environment') {
+                    constraints.video = {
+                        facingMode: { exact: 'environment' },
+                        width: { ideal: 1280, min: 640 },
+                        height: { ideal: 720, min: 480 },
+                        focusMode: 'continuous',
+                        zoom: 1.0
+                    };
+                }
 
                 console.log('Requesting camera with constraints:', constraints);
 
@@ -727,18 +738,29 @@
                 } catch (firstError) {
                     console.warn('First camera attempt failed:', firstError);
 
-                    // Fallback with simpler constraints for mobile
+                    // Progressive fallback for mobile cameras
                     const fallbackConstraints = {
-                        video: {
+                        video: isMobile ? {
                             facingMode: currentFacingMode,
-                            width: { max: 640 },
-                            height: { max: 480 }
+                            width: { ideal: 640, min: 320 },
+                            height: { ideal: 480, min: 240 }
+                        } : {
+                            facingMode: currentFacingMode
                         },
                         audio: false
                     };
 
                     console.log('Trying fallback constraints:', fallbackConstraints);
-                    currentStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+                    try {
+                        currentStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+                    } catch (secondError) {
+                        console.warn('Second camera attempt failed:', secondError);
+
+                        // Final fallback - basic video only
+                        const basicConstraints = { video: true, audio: false };
+                        console.log('Trying basic constraints:', basicConstraints);
+                        currentStream = await navigator.mediaDevices.getUserMedia(basicConstraints);
+                    }
                 }
 
                 const video = document.getElementById('scanner-video');
@@ -748,10 +770,39 @@
 
                 video.srcObject = currentStream;
 
-                // Mobile-specific video setup
+                // Enhanced mobile-specific video setup for better focusing
                 video.setAttribute('autoplay', '');
                 video.setAttribute('muted', '');
                 video.setAttribute('playsinline', ''); // Important for iOS
+
+                // Add focus and exposure settings for better barcode reading
+                const track = currentStream.getVideoTracks()[0];
+                if (track && track.getCapabilities) {
+                    const capabilities = track.getCapabilities();
+                    console.log('Camera capabilities:', capabilities);
+
+                    const constraints = {};
+
+                    // Enable autofocus if available
+                    if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
+                        constraints.focusMode = 'continuous';
+                    }
+
+                    // Set optimal zoom for barcode reading if available
+                    if (capabilities.zoom) {
+                        constraints.zoom = Math.min(capabilities.zoom.max, 2);
+                    }
+
+                    // Apply enhanced settings
+                    if (Object.keys(constraints).length > 0) {
+                        try {
+                            await track.applyConstraints(constraints);
+                            console.log('Applied enhanced camera constraints:', constraints);
+                        } catch (constraintError) {
+                            console.log('Could not apply enhanced constraints:', constraintError);
+                        }
+                    }
+                }
 
                 await new Promise((resolve, reject) => {
                     video.onloadedmetadata = () => {
@@ -761,12 +812,13 @@
                     };
                     video.onerror = reject;
 
-                    // Timeout after 10 seconds
-                    setTimeout(() => reject(new Error('Video load timeout')), 10000);
+                    // Timeout after 15 seconds for mobile
+                    setTimeout(() => reject(new Error('Video load timeout')), 15000);
                 });
 
                 console.log('Camera started successfully');
                 console.log('Video dimensions:', video.videoWidth, 'x', video.videoHeight);
+                console.log('Video track settings:', track ? track.getSettings() : 'No track info');
 
                 const scannerContainer = document.getElementById('scanner-container');
                 if (scannerContainer) {
@@ -786,14 +838,14 @@
 
                 cameraActive = true;
 
-                // Give camera time to stabilize before starting detection
+                // Give camera more time to stabilize and focus before starting detection
                 setTimeout(() => {
                     initializeScanning();
                     updateDebugInfo(); // Update debug info after camera starts
-                }, 1000);
+                }, 2000); // Increased delay for better focusing
 
-                showStatus('Camera active - Point at barcode', 'success');
-                updateStatusBar('Camera scanning active');
+                showStatus('Camera active - Point at barcode and hold steady', 'success');
+                updateStatusBar(`Camera scanning active (${currentFacingMode} camera)`);
 
             } catch (error) {
                 console.error('Camera error:', error);
@@ -811,7 +863,7 @@
                         errorMessage += 'Camera is already in use by another application.';
                         break;
                     case 'OverconstrainedError':
-                        errorMessage += 'Camera constraints not supported.';
+                        errorMessage += 'Camera constraints not supported. Try switching cameras.';
                         break;
                     case 'SecurityError':
                         errorMessage += 'HTTPS required for camera access.';
@@ -892,34 +944,25 @@
             }
         }
 
-        // Enhanced Mobile-Compatible Scanning Functions
+        // Enhanced Mobile-Compatible Scanning Functions - CORRECTED VERSION
         async function initializeScanning() {
             updateScannerStatus('🔍 Initializing detection...', 'scanning');
 
-            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-            // On mobile, prefer canvas-based detection over QuaggaJS for better compatibility
-            if (isMobile) {
-                console.log('Mobile device detected - using canvas-based detection');
-                startCanvasScanning();
-                updateScannerStatus('🔍 Mobile scanning active...', 'scanning');
-                return;
-            }
-
-            // Try QuaggaJS for desktop browsers
+            // Always try QuaggaJS first as it has real barcode decoding
             if (typeof Quagga !== 'undefined') {
                 try {
                     await initializeQuagga();
-                    updateScannerStatus('🔍 Advanced scanning active...', 'scanning');
+                    updateScannerStatus('🔍 QuaggaJS scanning active...', 'scanning');
                     return;
                 } catch (error) {
                     console.log('QuaggaJS failed, using fallback:', error);
+                    logError(error, 'QuaggaJS Init');
                 }
             }
 
-            // Fallback to canvas-based detection
+            // Fallback to canvas-based detection (with limited real decoding)
             startCanvasScanning();
-            updateScannerStatus('🔍 Basic scanning active...', 'scanning');
+            updateScannerStatus('🔍 Canvas scanning active...', 'scanning');
         }
 
         async function initializeQuagga() {
@@ -1094,23 +1137,6 @@
                     }
                 }
 
-                // Try basic barcode pattern detection
-                const barcodeResult = attemptBasicBarcodeDetection(canvas);
-                if (barcodeResult) {
-                    const now = Date.now();
-                    if (barcodeResult.code !== lastDetection || now - lastDetectionTime > 3000) {
-                        detectionCount++;
-                        lastDetection = barcodeResult.code;
-                        lastDetectionTime = now;
-
-                        console.log('Canvas barcode detected:', barcodeResult);
-                        updateScannerStatus(`✅ Barcode: ${barcodeResult.code}`, 'success');
-                        showDetectionResult(barcodeResult.code, 'Camera Detection', barcodeResult.confidence, barcodeResult.format);
-
-                        pauseScanning(3000);
-                    }
-                }
-
             } catch (error) {
                 console.error('Frame scanning error:', error);
                 logError(error, 'Frame Scanning');
@@ -1207,216 +1233,13 @@
                             }
                         }
 
-                        // Try enhanced barcode pattern detection
-                        const basicResult = attemptBasicBarcodeDetection(canvas);
-                        if (basicResult) {
-                            resolve(basicResult);
-                        } else {
-                            resolve(null);
-                        }
+                        // No other detection for images - QuaggaJS doesn't work on static images
+                        resolve(null);
                     };
                     img.src = e.target.result;
                 };
                 reader.readAsDataURL(file);
             });
-        }
-
-        // Enhanced barcode detection for Code-128
-        function attemptBasicBarcodeDetection(canvas) {
-            const context = canvas.getContext('2d');
-            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-
-            // Try to detect Code-128 patterns
-            const code128Result = detectCode128Pattern(imageData, canvas.width, canvas.height);
-            if (code128Result) {
-                return code128Result;
-            }
-
-            // Try to detect EAN/UPC patterns
-            const eanResult = detectEANPattern(imageData, canvas.width, canvas.height);
-            if (eanResult) {
-                return eanResult;
-            }
-
-            // Basic pattern detection as fallback
-            const basicResult = detectBasicPattern(imageData, canvas.width, canvas.height);
-            return basicResult;
-        }
-
-        function detectCode128Pattern(imageData, width, height) {
-            // Look for Code-128 specific patterns
-            const barcodeRegions = findBarcodeRegions(imageData, width, height);
-
-            for (const region of barcodeRegions) {
-                const bars = extractBarPattern(imageData, region, width);
-                const decoded = decodeCode128Bars(bars);
-
-                if (decoded && decoded.length > 0) {
-                    return {
-                        code: decoded,
-                        confidence: 85,
-                        format: 'CODE-128'
-                    };
-                }
-            }
-
-            return null;
-        }
-
-        function detectEANPattern(imageData, width, height) {
-            const barcodeRegions = findBarcodeRegions(imageData, width, height);
-
-            for (const region of barcodeRegions) {
-                const bars = extractBarPattern(imageData, region, width);
-                const decoded = decodeEANBars(bars);
-
-                if (decoded && /^\d{8,14}$/.test(decoded)) {
-                    const format = decoded.length === 13 ? 'EAN-13' :
-                        decoded.length === 8 ? 'EAN-8' :
-                            decoded.length === 12 ? 'UPC-A' : 'EAN';
-
-                    return {
-                        code: decoded,
-                        confidence: 80,
-                        format: format
-                    };
-                }
-            }
-
-            return null;
-        }
-
-        function detectBasicPattern(imageData, width, height) {
-            // Fallback basic pattern detection
-            let verticalPatterns = 0;
-            const sampleWidth = Math.min(width, 200);
-            const sampleHeight = Math.min(height, 100);
-
-            for (let y = 0; y < sampleHeight; y += 5) {
-                for (let x = 0; x < sampleWidth - 1; x += 5) {
-                    const pixel1 = getPixelBrightness(imageData, x, y, width);
-                    const pixel2 = getPixelBrightness(imageData, x + 1, y, width);
-
-                    if (Math.abs(pixel1 - pixel2) > 100) {
-                        verticalPatterns++;
-                    }
-                }
-            }
-
-            if (verticalPatterns > 50) {
-                return {
-                    code: '123456789012',
-                    confidence: 50,
-                    format: 'DETECTED-PATTERN'
-                };
-            }
-
-            return null;
-        }
-
-        // Helper functions for barcode detection
-        function findBarcodeRegions(imageData, width, height) {
-            const regions = [];
-            const minBarcodeHeight = 30;
-            const minBarcodeWidth = 100;
-
-            // Scan for horizontal regions with high contrast patterns
-            for (let y = 0; y < height - minBarcodeHeight; y += 10) {
-                for (let x = 0; x < width - minBarcodeWidth; x += 20) {
-                    const region = {
-                        x: x,
-                        y: y,
-                        width: Math.min(minBarcodeWidth * 2, width - x),
-                        height: Math.min(minBarcodeHeight, height - y)
-                    };
-
-                    if (hasBarcodeLikePattern(imageData, region, width)) {
-                        regions.push(region);
-                    }
-                }
-            }
-
-            return regions.slice(0, 5); // Limit to top 5 candidates
-        }
-
-        function hasBarcodeLikePattern(imageData, region, width) {
-            let transitions = 0;
-            const threshold = 50;
-            let lastBrightness = -1;
-
-            // Sample horizontal line through middle of region
-            const y = region.y + Math.floor(region.height / 2);
-
-            for (let x = region.x; x < region.x + region.width; x += 2) {
-                const brightness = getPixelBrightness(imageData, x, y, width);
-
-                if (lastBrightness !== -1) {
-                    if (Math.abs(brightness - lastBrightness) > threshold) {
-                        transitions++;
-                    }
-                }
-                lastBrightness = brightness;
-            }
-
-            // A barcode should have many transitions
-            return transitions > 10;
-        }
-
-        function extractBarPattern(imageData, region, width) {
-            const bars = [];
-            const y = region.y + Math.floor(region.height / 2);
-            const threshold = 128;
-
-            let currentBar = { type: 'unknown', width: 0 };
-
-            for (let x = region.x; x < region.x + region.width; x++) {
-                const brightness = getPixelBrightness(imageData, x, y, width);
-                const isBlack = brightness < threshold;
-                const barType = isBlack ? 'black' : 'white';
-
-                if (currentBar.type === barType || currentBar.type === 'unknown') {
-                    currentBar.type = barType;
-                    currentBar.width++;
-                } else {
-                    if (currentBar.width > 0) {
-                        bars.push(currentBar);
-                    }
-                    currentBar = { type: barType, width: 1 };
-                }
-            }
-
-            if (currentBar.width > 0) {
-                bars.push(currentBar);
-            }
-
-            return bars;
-        }
-
-        function decodeCode128Bars(bars) {
-            if (!bars || bars.length < 20) return null;
-
-            // This is a simplified detection - real Code-128 decoding is very complex
-            // For now, we'll only detect if there's a valid bar pattern structure
-            // but return null since we can't actually decode without full implementation
-
-            console.log('Code-128 pattern detected but decoding not fully implemented');
-            return null; // Return null - let QuaggaJS handle real decoding
-        }
-
-        function decodeEANBars(bars) {
-            if (!bars || bars.length < 30) return null;
-
-            // Similar to Code-128 - pattern detection only, no real decoding
-            console.log('EAN pattern detected but decoding not fully implemented');
-            return null; // Return null - let QuaggaJS handle real decoding
-        }
-
-        function getPixelBrightness(imageData, x, y, width) {
-            const index = (y * width + x) * 4;
-            const r = imageData.data[index];
-            const g = imageData.data[index + 1];
-            const b = imageData.data[index + 2];
-            return (r + g + b) / 3;
         }
 
         // Enhanced Manual Entry Functions
