@@ -4,13 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mobile Barcode Scanner</title>
+    <title>Universal Mobile Scanner</title>
 
-    <!-- QuaggaJS for barcode detection -->
+    <!-- FIXED: Correct working CDN URLs -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
-
-    <!-- ZXing for additional QR/barcode detection -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 
     <style>
         * {
@@ -65,14 +63,28 @@
             box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
         }
 
-        .status-bar {
+        .compatibility-bar {
             background: rgba(255, 255, 255, 0.9);
             padding: 12px 16px;
             border-radius: 10px;
             margin-bottom: 15px;
-            font-size: 13px;
-            border-left: 4px solid #17a2b8;
+            font-size: 12px;
             text-align: center;
+        }
+
+        .compatibility-bar.compatible {
+            border-left: 4px solid #28a745;
+            color: #155724;
+        }
+
+        .compatibility-bar.incompatible {
+            border-left: 4px solid #dc3545;
+            color: #721c24;
+        }
+
+        .compatibility-bar.warning {
+            border-left: 4px solid #ffc107;
+            color: #856404;
         }
 
         .scanner-section {
@@ -84,13 +96,26 @@
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
         }
 
-        /* Camera Scanner */
         .camera-section {
             background: linear-gradient(135deg, #e8f4fd, #f0f8ff);
             border: 2px solid #2196F3;
             border-radius: 12px;
             padding: 15px;
             margin-bottom: 15px;
+        }
+
+        .permission-prompt {
+            background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+            border: 2px solid #ffc107;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            text-align: center;
+            display: none;
+        }
+
+        .permission-prompt.active {
+            display: block;
         }
 
         .camera-controls {
@@ -132,6 +157,10 @@
 
         .scanner-btn.danger {
             background: linear-gradient(45deg, #dc3545, #c82333);
+        }
+
+        .scanner-btn.warning {
+            background: linear-gradient(45deg, #ffc107, #e0a800);
         }
 
         #scanner-container {
@@ -181,15 +210,38 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 250px;
-            height: 80px;
-            border: 2px dashed rgba(255, 255, 255, 0.8);
+            width: 200px;
+            height: 60px;
+            border: 2px solid rgba(255, 255, 255, 0.9);
             border-radius: 8px;
             pointer-events: none;
             z-index: 5;
         }
 
-        /* Upload Section */
+        .device-status {
+            position: absolute;
+            top: 50px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 10px;
+            z-index: 15;
+        }
+
+        .device-status.compatible {
+            background: rgba(40, 167, 69, 0.9);
+        }
+
+        .device-status.limited {
+            background: rgba(255, 193, 7, 0.9);
+        }
+
+        .device-status.incompatible {
+            background: rgba(220, 53, 69, 0.9);
+        }
+
         .upload-section {
             border: 2px dashed #007bff;
             border-radius: 12px;
@@ -228,7 +280,6 @@
             display: none;
         }
 
-        /* Manual Entry Section */
         .manual-section {
             background: linear-gradient(135deg, #e8f5e8, #ffffff);
             border: 2px solid #28a745;
@@ -281,7 +332,6 @@
             transform: scale(0.95);
         }
 
-        /* Status Messages */
         .status {
             padding: 12px 16px;
             border-radius: 10px;
@@ -316,7 +366,6 @@
             border: 1px solid #17a2b8;
         }
 
-        /* Results Section */
         .results-section {
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(15px);
@@ -371,7 +420,6 @@
             }
         }
 
-        /* Debug info styles */
         .debug-info {
             background: #f8f9fa;
             border: 1px solid #dee2e6;
@@ -379,9 +427,9 @@
             padding: 10px;
             margin-top: 10px;
             font-family: monospace;
-            font-size: 12px;
+            font-size: 11px;
             color: #495057;
-            max-height: 150px;
+            max-height: 200px;
             overflow-y: auto;
         }
 
@@ -439,31 +487,43 @@
     <div class="container">
         <!-- Header -->
         <div class="header">
-            <h1>Barcode Scanner Pro</h1>
-            <div class="subtitle">Scan any barcode instantly</div>
+            <h1>Universal Mobile Scanner</h1>
+            <div class="subtitle">Compatible with all mobile devices</div>
         </div>
 
-        <!-- Status Bar -->
-        <div class="status-bar" id="statusBar">
-            <span id="statusBarText">Initializing mobile scanner...</span>
+        <!-- Compatibility Status -->
+        <div class="compatibility-bar" id="compatibilityBar">
+            <span id="compatibilityText">Checking device compatibility...</span>
+        </div>
+
+        <!-- Permission Prompt -->
+        <div class="permission-prompt" id="permissionPrompt">
+            <h3 style="color: #856404; margin-bottom: 10px;">Camera Permission Required</h3>
+            <p style="margin-bottom: 15px;">This app needs camera access to scan barcodes. Please allow camera
+                permission when prompted.</p>
+            <button class="scanner-btn warning" onclick="requestCameraPermission()">Grant Camera Access</button>
+            <button class="scanner-btn" onclick="showPermissionHelp()" style="margin-left: 10px;">Help</button>
         </div>
 
         <div class="scanner-section">
             <!-- Camera Scanner -->
             <div class="camera-section">
-                <h3 style="text-align: center; margin-bottom: 15px;">📱 Camera Scanner</h3>
+                <h3 style="text-align: center; margin-bottom: 15px;">📱 Universal Camera Scanner</h3>
 
                 <div class="camera-controls">
                     <button id="startCameraBtn" class="scanner-btn" onclick="toggleCamera()">Start Camera</button>
                     <button id="switchCameraBtn" class="scanner-btn" onclick="switchCamera()" disabled>Switch
                         Camera</button>
                     <button id="pauseScanBtn" class="scanner-btn" onclick="togglePause()" disabled>Pause Scan</button>
+                    <button id="retryBtn" class="scanner-btn warning" onclick="retryCamera()"
+                        style="display: none;">Retry Camera</button>
                 </div>
 
                 <div id="scanner-container">
-                    <video id="scanner-video" autoplay muted playsinline></video>
+                    <video id="scanner-video" autoplay muted playsinline webkit-playsinline x5-playsinline></video>
                     <div class="scanner-overlay" id="scannerStatus">Ready to scan</div>
                     <div class="target-overlay"></div>
+                    <div class="device-status" id="deviceStatus">Initializing...</div>
                 </div>
             </div>
 
@@ -479,13 +539,11 @@
             <!-- Manual Entry -->
             <div class="manual-section">
                 <h3 style="margin-bottom: 15px;">⌨️ Manual Entry</h3>
-
                 <div class="manual-input-group">
                     <input type="text" id="manualInput" class="manual-input" placeholder="Enter barcode number"
                         onkeypress="if(event.key==='Enter') validateManualEntry()" oninput="validateBarcodeInput(this)">
                     <button class="lookup-btn" onclick="validateManualEntry()">Validate</button>
                 </div>
-
                 <div class="suggestions" style="font-size: 12px; color: #6c757d; margin-top: 8px;">
                     Test: <strong>01234567890abcdefg</strong> or <strong>ABC123DEF456</strong> or
                     <strong>8901030899799</strong>
@@ -495,29 +553,21 @@
             <!-- Status Messages -->
             <div id="status" class="status">Ready to scan</div>
 
-            <!-- Debug Panel for Mobile Troubleshooting -->
-            <div id="debugPanel"
-                style="display: none; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin-top: 10px;">
+            <!-- Comprehensive Debug Panel -->
+            <div id="debugPanel" class="debug-info" style="display: block; margin-top: 15px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <h4 style="margin: 0; font-size: 14px; color: #495057;">Debug Information</h4>
+                    <h4 style="margin: 0; font-size: 13px; color: #495057;">System Diagnostics</h4>
                     <button onclick="toggleDebugPanel()"
-                        style="background: #6c757d; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px;">Hide</button>
+                        style="background: #6c757d; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 10px;">Hide</button>
                 </div>
-                <div id="debugInfo" class="debug-info" style="font-size: 11px; line-height: 1.4;">
+                <div id="debugInfo" style="font-size: 10px; line-height: 1.3;">
+                    <div id="debugDevice">Device: Loading...</div>
                     <div id="debugBrowser">Browser: Loading...</div>
+                    <div id="debugPermissions">Permissions: Checking...</div>
+                    <div id="debugLibraries">Libraries: Loading...</div>
                     <div id="debugCamera">Camera: Not started</div>
-                    <div id="debugVideo">Video: Not loaded</div>
-                    <div id="debugScanning">Scanning: Inactive</div>
                     <div id="debugErrors">Errors: None</div>
                 </div>
-            </div>
-
-            <!-- Mobile Debug Toggle -->
-            <div style="text-align: center; margin-top: 10px;">
-                <button onclick="toggleDebugPanel()"
-                    style="background: #6c757d; color: white; border: none; padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;">
-                    Show Debug Info
-                </button>
             </div>
         </div>
 
@@ -530,12 +580,12 @@
 
             <div id="results">
                 <div style="text-align: center; padding: 30px; color: #6c757d;">
-                    <div style="font-size: 2.5rem; margin-bottom: 12px;">📱</div>
-                    <div style="font-size: 1rem; font-weight: 600; margin-bottom: 10px;">Mobile Scanner Ready</div>
+                    <div style="font-size: 2.5rem; margin-bottom: 12px;">🌍</div>
+                    <div style="font-size: 1rem; font-weight: 600; margin-bottom: 10px;">Universal Scanner Ready</div>
                     <div style="line-height: 1.6; font-size: 13px;">
-                        📱 <strong>Real-time Camera Detection</strong><br>
-                        📷 <strong>Image Upload Analysis</strong><br>
-                        ⌨️ <strong>Manual Entry Validation</strong>
+                        📱 <strong>All Mobile Devices Supported</strong><br>
+                        🔒 <strong>Forced Permission Handling</strong><br>
+                        🔄 <strong>Auto-Retry & Recovery</strong>
                     </div>
                 </div>
             </div>
@@ -554,147 +604,357 @@
         let scanningLoop = null;
         let quaggaInitialized = false;
 
-        // Initialize application with mobile debugging
+        // Enhanced device and compatibility tracking
+        let deviceInfo = {};
+        let compatibilityStatus = 'unknown';
+        let permissionStatus = 'unknown';
+        let libraryStatus = { quagga: false, jsQR: false };
+        let retryCount = 0;
+        let maxRetries = 3;
+
+        // Initialize universal mobile scanner
         document.addEventListener('DOMContentLoaded', async function () {
-            console.log('Mobile Barcode Scanner initializing...');
+            console.log('Universal Mobile Scanner initializing...');
 
-            checkBrowserSupport();
-            setupDragAndDrop();
+            // Comprehensive initialization sequence
+            await initializeDeviceDetection();
+            await checkLibraryCompatibility();
+            await checkBrowserCompatibility();
+            await checkPermissionStatus();
+            await updateCompatibilityStatus();
 
-            document.getElementById('manualInput').focus();
-            updateStatusBar('Mobile scanner ready - Choose scanning method');
+            setupEventHandlers();
+            initializeUI();
 
-            // Mobile-specific initialization
-            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-            if (isMobile) {
-                console.log('Mobile device detected - enabling mobile optimizations');
-                document.getElementById('debugPanel').style.display = 'block';
-                updateDebugInfo();
-            }
-
-            console.log('Mobile scanner initialized');
+            console.log('Universal scanner initialized:', { deviceInfo, compatibilityStatus, libraryStatus });
         });
 
-        // Debug functions for mobile troubleshooting
-        function updateDebugInfo() {
-            // Check if debug elements exist before updating
-            if (!document.getElementById('debugBrowser')) return;
+        // Enhanced device detection with comprehensive mobile support
+        async function initializeDeviceDetection() {
+            const userAgent = navigator.userAgent.toLowerCase();
+            const platform = navigator.platform?.toLowerCase() || '';
+            const vendor = navigator.vendor?.toLowerCase() || '';
 
-            try {
-                const isSecure = location.protocol === 'https:' || location.hostname === 'localhost';
-                const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            deviceInfo = {
+                // Device type detection
+                isAndroid: /android/i.test(userAgent),
+                isIOS: /iphone|ipad|ipod/i.test(userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1),
+                isSamsung: /samsung|sm-[a-z]\d+|galaxy/i.test(userAgent) || /samsungbrowser/i.test(userAgent),
+                isHuawei: /huawei|honor|hma-|lya-|ana-/i.test(userAgent),
+                isXiaomi: /xiaomi|mi \d|redmi|mix \d/i.test(userAgent),
+                isOppo: /oppo|cph\d|pam\d/i.test(userAgent),
+                isVivo: /vivo|v\d{4}/i.test(userAgent),
+                isOnePlus: /oneplus|gm\d|hd\d|kb\d/i.test(userAgent),
 
-                const debugBrowser = document.getElementById('debugBrowser');
-                if (debugBrowser) {
-                    debugBrowser.innerHTML = `
-                        Browser: ${navigator.userAgent.split(' ').slice(-2).join(' ')}<br>
-                        Mobile: ${isMobile ? 'Yes' : 'No'} | Secure: ${isSecure ? 'Yes' : 'No'}<br>
-                        Screen: ${screen.width}x${screen.height} | Viewport: ${window.innerWidth}x${window.innerHeight}
-                    `;
-                }
+                // Browser detection
+                browser: getBrowserInfo(),
+                browserEngine: getBrowserEngine(),
 
-                const debugCamera = document.getElementById('debugCamera');
-                if (debugCamera) {
-                    debugCamera.innerHTML = `
-                        Camera API: ${!!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) ? 'Available' : 'Not Available'}<br>
-                        Stream: ${currentStream ? 'Active' : 'Inactive'} | Face Mode: ${currentFacingMode}
-                    `;
-                }
+                // Capabilities
+                isSecure: location.protocol === 'https:' || location.hostname === 'localhost',
+                hasMediaDevices: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+                hasPermissionsAPI: !!(navigator.permissions && navigator.permissions.query),
+                supportsWebRTC: !!(window.RTCPeerConnection || window.webkitRTCPeerConnection),
 
-                const video = document.getElementById('scanner-video');
-                const debugVideo = document.getElementById('debugVideo');
-                if (debugVideo) {
-                    debugVideo.innerHTML = `
-                        Ready State: ${video ? video.readyState : 'N/A'}<br>
-                        Dimensions: ${video ? `${video.videoWidth}x${video.videoHeight}` : 'N/A'}<br>
-                        Display: ${video ? `${video.clientWidth}x${video.clientHeight}` : 'N/A'}
-                    `;
-                }
+                // Hardware info
+                hardwareConcurrency: navigator.hardwareConcurrency || 1,
+                maxTouchPoints: navigator.maxTouchPoints || 0,
+                deviceMemory: navigator.deviceMemory || 'unknown',
 
-                const debugScanning = document.getElementById('debugScanning');
-                if (debugScanning) {
-                    debugScanning.innerHTML = `
-                        Active: ${cameraActive ? 'Yes' : 'No'} | Paused: ${scanningPaused ? 'Yes' : 'No'}<br>
-                        Quagga: ${quaggaInitialized ? 'Yes' : 'No'} | Loop: ${scanningLoop ? 'Yes' : 'No'}<br>
-                        Detections: ${detectionCount} | Last: ${lastDetection || 'None'}
-                    `;
-                }
-            } catch (error) {
-                console.error('Debug info update error:', error);
+                // Screen info
+                screenWidth: screen.width,
+                screenHeight: screen.height,
+                pixelRatio: window.devicePixelRatio || 1,
+
+                // Network
+                connection: navigator.connection?.effectiveType || 'unknown',
+
+                // System
+                language: navigator.language,
+                languages: navigator.languages || [navigator.language],
+                platform: platform,
+                vendor: vendor,
+                userAgent: userAgent
+            };
+
+            // Update debug info
+            updateDebugInfo();
+        }
+
+        function getBrowserInfo() {
+            const ua = navigator.userAgent;
+
+            if (/samsungbrowser/i.test(ua)) return 'Samsung Internet';
+            if (/miuibrowser/i.test(ua)) return 'MIUI Browser';
+            if (/huaweibrowser/i.test(ua)) return 'Huawei Browser';
+            if (/ucbrowser/i.test(ua)) return 'UC Browser';
+            if (/vivobrowser/i.test(ua)) return 'Vivo Browser';
+            if (/oppobrowser/i.test(ua)) return 'Oppo Browser';
+            if (/qqbrowser/i.test(ua)) return 'QQ Browser';
+            if (/baidubrowser/i.test(ua)) return 'Baidu Browser';
+            if (/chrome/i.test(ua) && !/chromium/i.test(ua)) return 'Chrome Mobile';
+            if (/firefox/i.test(ua)) return 'Firefox Mobile';
+            if (/safari/i.test(ua) && !/chrome/i.test(ua)) return 'Safari Mobile';
+            if (/edge/i.test(ua)) return 'Edge Mobile';
+            if (/opera/i.test(ua)) return 'Opera Mobile';
+
+            return 'Unknown Mobile Browser';
+        }
+
+        function getBrowserEngine() {
+            const ua = navigator.userAgent;
+
+            if (/webkit/i.test(ua) && /chrome/i.test(ua)) return 'Blink';
+            if (/webkit/i.test(ua)) return 'WebKit';
+            if (/gecko/i.test(ua)) return 'Gecko';
+            if (/trident/i.test(ua)) return 'Trident';
+
+            return 'Unknown';
+        }
+
+        // Enhanced library compatibility checking
+        async function checkLibraryCompatibility() {
+            libraryStatus.quagga = typeof Quagga !== 'undefined';
+            libraryStatus.jsQR = typeof jsQR !== 'undefined';
+
+            console.log('Library status:', libraryStatus);
+
+            // Update debug info
+            const debugLibraries = document.getElementById('debugLibraries');
+            if (debugLibraries) {
+                const quaggaIcon = libraryStatus.quagga ? '✅' : '❌';
+                const jsQRIcon = libraryStatus.jsQR ? '✅' : '❌';
+                debugLibraries.innerHTML = `QuaggaJS: ${quaggaIcon} | jsQR: ${jsQRIcon} | Total: ${Object.values(libraryStatus).filter(Boolean).length}/2`;
+            }
+
+            // Warn about missing libraries
+            if (!libraryStatus.jsQR) {
+                console.error('jsQR library not loaded - QR code detection unavailable');
+                showStatus('Warning: QR code detection unavailable (library error)', 'error');
             }
         }
 
-        function toggleDebugPanel() {
-            const panel = document.getElementById('debugPanel');
-            if (!panel) return;
-
-            if (panel.style.display === 'none' || panel.style.display === '') {
-                panel.style.display = 'block';
-                updateDebugInfo();
-                // Update debug info every 2 seconds when visible
-                if (!window.debugInterval) {
-                    window.debugInterval = setInterval(updateDebugInfo, 2000);
-                }
-            } else {
-                panel.style.display = 'none';
-                if (window.debugInterval) {
-                    clearInterval(window.debugInterval);
-                    window.debugInterval = null;
-                }
-            }
-        }
-
-        function logError(error, context) {
-            console.error(`${context}:`, error);
-            const debugErrors = document.getElementById('debugErrors');
-            if (debugErrors) {
-                const errorInfo = `${context}: ${error.message || error}`;
-                debugErrors.innerHTML = errorInfo;
-            }
-        }
-
-        // Check browser support with mobile-specific checks
-        function checkBrowserSupport() {
-            const isSecure = location.protocol === 'https:' || location.hostname === 'localhost';
-            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
+        // Enhanced browser compatibility checking
+        async function checkBrowserCompatibility() {
             const features = {
-                camera: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
-                quagga: typeof Quagga !== 'undefined',
-                jsqr: typeof jsQR !== 'undefined',
+                mediaDevices: deviceInfo.hasMediaDevices,
+                permissions: deviceInfo.hasPermissionsAPI,
+                webRTC: deviceInfo.supportsWebRTC,
                 canvas: !!document.createElement('canvas').getContext,
-                secure: isSecure,
-                mobile: isMobile
+                webGL: !!document.createElement('canvas').getContext('webgl'),
+                secure: deviceInfo.isSecure
             };
 
             console.log('Browser features:', features);
-            console.log('User Agent:', navigator.userAgent);
 
-            if (!isSecure && isMobile) {
-                showStatus('HTTPS required for camera access on mobile devices', 'error');
-                document.getElementById('startCameraBtn').disabled = true;
-                updateStatusBar('Secure connection required for mobile camera');
-                return;
+            // Determine compatibility level
+            if (!deviceInfo.isSecure && (deviceInfo.isAndroid || deviceInfo.isIOS)) {
+                compatibilityStatus = 'incompatible';
+            } else if (!features.mediaDevices) {
+                compatibilityStatus = 'incompatible';
+            } else if (features.mediaDevices && features.canvas) {
+                compatibilityStatus = 'compatible';
+            } else {
+                compatibilityStatus = 'limited';
             }
 
-            if (!features.camera) {
-                showStatus('Camera not supported in this browser', 'error');
-                document.getElementById('startCameraBtn').disabled = true;
-                updateStatusBar('Camera API not available');
-                return;
-            }
-
-            if (isMobile && !features.quagga) {
-                console.log('Mobile device detected - using canvas-based detection');
-                updateStatusBar('Mobile scanner ready - using optimized detection');
-            }
-
-            if (!features.quagga && !features.jsqr) {
-                showStatus('Limited barcode detection available', 'info');
+            // Update debug info
+            const debugBrowser = document.getElementById('debugBrowser');
+            if (debugBrowser) {
+                debugBrowser.innerHTML = `
+                    Engine: ${deviceInfo.browserEngine} | Browser: ${deviceInfo.browser}<br>
+                    HTTPS: ${deviceInfo.isSecure ? '✅' : '❌'} | MediaDevices: ${features.mediaDevices ? '✅' : '❌'}<br>
+                    WebRTC: ${features.webRTC ? '✅' : '❌'} | Canvas: ${features.canvas ? '✅' : '❌'}
+                `;
             }
         }
 
-        // Camera Functions
+        // Enhanced permission checking with persistent monitoring
+        async function checkPermissionStatus() {
+            if (!deviceInfo.hasPermissionsAPI) {
+                permissionStatus = 'unknown';
+                return;
+            }
+
+            try {
+                const cameraPermission = await navigator.permissions.query({ name: 'camera' });
+                permissionStatus = cameraPermission.state;
+
+                // Monitor permission changes
+                cameraPermission.addEventListener('change', () => {
+                    permissionStatus = cameraPermission.state;
+                    updatePermissionUI();
+                    console.log('Camera permission changed to:', permissionStatus);
+                });
+
+                console.log('Camera permission status:', permissionStatus);
+                updatePermissionUI();
+
+            } catch (error) {
+                console.log('Permission API error:', error);
+                permissionStatus = 'unknown';
+            }
+
+            // Update debug info
+            const debugPermissions = document.getElementById('debugPermissions');
+            if (debugPermissions) {
+                const permIcon = permissionStatus === 'granted' ? '✅' : permissionStatus === 'denied' ? '❌' : '⚠️';
+                debugPermissions.innerHTML = `Camera: ${permIcon} ${permissionStatus} | API: ${deviceInfo.hasPermissionsAPI ? '✅' : '❌'}`;
+            }
+        }
+
+        function updatePermissionUI() {
+            const permissionPrompt = document.getElementById('permissionPrompt');
+            const startBtn = document.getElementById('startCameraBtn');
+
+            if (permissionStatus === 'denied') {
+                permissionPrompt.classList.add('active');
+                if (startBtn) startBtn.disabled = true;
+            } else {
+                permissionPrompt.classList.remove('active');
+                if (startBtn) startBtn.disabled = false;
+            }
+        }
+
+        // Update overall compatibility status
+        async function updateCompatibilityStatus() {
+            const compatibilityBar = document.getElementById('compatibilityBar');
+            const compatibilityText = document.getElementById('compatibilityText');
+
+            let message = '';
+            let className = '';
+
+            switch (compatibilityStatus) {
+                case 'compatible':
+                    message = `✅ Fully compatible - ${deviceInfo.browser} on ${getDeviceName()}`;
+                    className = 'compatible';
+                    break;
+                case 'limited':
+                    message = `⚠️ Limited compatibility - Some features may not work on ${deviceInfo.browser}`;
+                    className = 'warning';
+                    break;
+                case 'incompatible':
+                    message = `❌ Incompatible - ${!deviceInfo.isSecure ? 'HTTPS required' : 'Browser not supported'}`;
+                    className = 'incompatible';
+                    break;
+                default:
+                    message = '🔄 Checking compatibility...';
+                    className = 'warning';
+            }
+
+            if (compatibilityText) compatibilityText.textContent = message;
+            if (compatibilityBar) {
+                compatibilityBar.className = `compatibility-bar ${className}`;
+            }
+
+            // Update device status indicator
+            const deviceStatus = document.getElementById('deviceStatus');
+            if (deviceStatus) {
+                deviceStatus.textContent = getDeviceName();
+                deviceStatus.className = `device-status ${compatibilityStatus}`;
+            }
+
+            // Disable camera if incompatible
+            if (compatibilityStatus === 'incompatible') {
+                const startBtn = document.getElementById('startCameraBtn');
+                if (startBtn) {
+                    startBtn.disabled = true;
+                    startBtn.textContent = 'Camera Unavailable';
+                }
+            }
+        }
+
+        function getDeviceName() {
+            if (deviceInfo.isSamsung) return 'Samsung';
+            if (deviceInfo.isIOS) return 'iPhone/iPad';
+            if (deviceInfo.isHuawei) return 'Huawei';
+            if (deviceInfo.isXiaomi) return 'Xiaomi';
+            if (deviceInfo.isOppo) return 'Oppo';
+            if (deviceInfo.isVivo) return 'Vivo';
+            if (deviceInfo.isOnePlus) return 'OnePlus';
+            if (deviceInfo.isAndroid) return 'Android';
+            return 'Mobile Device';
+        }
+
+        // Forced permission request with multiple strategies
+        async function requestCameraPermission() {
+            showStatus('Requesting camera permission...', 'loading');
+
+            try {
+                // Strategy 1: Direct getUserMedia call
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                stream.getTracks().forEach(track => track.stop());
+
+                permissionStatus = 'granted';
+                updatePermissionUI();
+                showStatus('Camera permission granted!', 'success');
+
+                console.log('Camera permission granted via direct request');
+
+            } catch (error) {
+                console.log('Direct permission request failed:', error);
+
+                // Strategy 2: Try with basic constraints
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                    stream.getTracks().forEach(track => track.stop());
+
+                    permissionStatus = 'granted';
+                    updatePermissionUI();
+                    showStatus('Camera permission granted!', 'success');
+
+                } catch (secondError) {
+                    console.log('Fallback permission request failed:', secondError);
+                    handlePermissionError(secondError);
+                }
+            }
+        }
+
+        function handlePermissionError(error) {
+            let message = 'Camera permission failed: ';
+
+            switch (error.name) {
+                case 'NotAllowedError':
+                    message += 'Permission denied. Please enable camera access in browser settings.';
+                    permissionStatus = 'denied';
+                    break;
+                case 'NotFoundError':
+                    message += 'No camera found on this device.';
+                    break;
+                case 'NotReadableError':
+                    message += 'Camera is being used by another application.';
+                    break;
+                case 'SecurityError':
+                    message += 'HTTPS required for camera access.';
+                    break;
+                default:
+                    message += error.message || 'Unknown error occurred.';
+            }
+
+            showStatus(message, 'error');
+            updatePermissionUI();
+        }
+
+        function showPermissionHelp() {
+            const helpMessage = `
+To enable camera access:
+
+${deviceInfo.browser === 'Chrome Mobile' ? '• Tap the camera icon in address bar\n• Select "Allow" for camera permission' : ''}
+${deviceInfo.browser === 'Safari Mobile' ? '• Go to Settings > Safari > Camera\n• Allow camera access for this site' : ''}
+${deviceInfo.browser === 'Samsung Internet' ? '• Tap menu (⋮) > Settings > Sites and downloads\n• Enable camera permissions' : ''}
+${deviceInfo.isAndroid ? '• Check Android Settings > Apps > Browser > Permissions' : ''}
+${deviceInfo.isIOS ? '• Check iOS Settings > Privacy & Security > Camera' : ''}
+
+General steps:
+• Refresh this page
+• Click "Grant Camera Access" when prompted
+• Allow camera permission in browser dialog
+            `.trim();
+
+            alert(helpMessage);
+        }
+
+        // Enhanced camera functions with device-specific optimizations
         async function toggleCamera() {
             if (cameraActive) {
                 stopCamera();
@@ -706,180 +966,326 @@
         async function startCamera() {
             try {
                 showStatus('Starting camera...', 'loading');
-                updateStatusBar('Requesting camera permission...');
+                retryCount = 0;
 
-                // Enhanced constraints for better mobile back camera performance
-                const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-                let constraints = {
-                    video: {
-                        facingMode: currentFacingMode,
-                        width: { ideal: 1280, min: 320, max: 1920 },
-                        height: { ideal: 720, min: 240, max: 1080 }
-                    },
-                    audio: false
-                };
-
-                // Enhanced mobile constraints for back camera focusing
-                if (isMobile && currentFacingMode === 'environment') {
-                    constraints.video = {
-                        facingMode: { exact: 'environment' },
-                        width: { ideal: 1280, min: 640 },
-                        height: { ideal: 720, min: 480 },
-                        focusMode: 'continuous',
-                        zoom: 1.0
-                    };
+                // Check permission first
+                if (permissionStatus === 'denied') {
+                    await requestCameraPermission();
+                    return;
                 }
 
-                console.log('Requesting camera with constraints:', constraints);
+                const constraints = getDeviceOptimizedConstraints();
+                console.log('Using device-optimized constraints:', constraints);
 
-                try {
-                    currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-                } catch (firstError) {
-                    console.warn('First camera attempt failed:', firstError);
+                // Progressive camera initialization with device-specific fallbacks
+                let stream = null;
+                const attempts = getDeviceSpecificAttempts();
 
-                    // Progressive fallback for mobile cameras
-                    const fallbackConstraints = {
-                        video: isMobile ? {
-                            facingMode: currentFacingMode,
-                            width: { ideal: 640, min: 320 },
-                            height: { ideal: 480, min: 240 }
-                        } : {
-                            facingMode: currentFacingMode
-                        },
-                        audio: false
-                    };
-
-                    console.log('Trying fallback constraints:', fallbackConstraints);
+                for (let i = 0; i < attempts.length; i++) {
                     try {
-                        currentStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
-                    } catch (secondError) {
-                        console.warn('Second camera attempt failed:', secondError);
-
-                        // Final fallback - basic video only
-                        const basicConstraints = { video: true, audio: false };
-                        console.log('Trying basic constraints:', basicConstraints);
-                        currentStream = await navigator.mediaDevices.getUserMedia(basicConstraints);
+                        console.log(`Camera attempt ${i + 1}/${attempts.length}:`, attempts[i]);
+                        stream = await navigator.mediaDevices.getUserMedia(attempts[i]);
+                        console.log(`Camera successful on attempt ${i + 1}`);
+                        break;
+                    } catch (error) {
+                        console.log(`Camera attempt ${i + 1} failed:`, error.message);
+                        if (i === attempts.length - 1) throw error;
+                        // Small delay between attempts
+                        await new Promise(resolve => setTimeout(resolve, 500));
                     }
                 }
 
-                const video = document.getElementById('scanner-video');
-                if (!video) {
-                    throw new Error('Scanner video element not found');
-                }
-
-                video.srcObject = currentStream;
-
-                // Enhanced mobile-specific video setup for better focusing
-                video.setAttribute('autoplay', '');
-                video.setAttribute('muted', '');
-                video.setAttribute('playsinline', ''); // Important for iOS
-
-                // Add focus and exposure settings for better barcode reading
-                const track = currentStream.getVideoTracks()[0];
-                if (track && track.getCapabilities) {
-                    const capabilities = track.getCapabilities();
-                    console.log('Camera capabilities:', capabilities);
-
-                    const constraints = {};
-
-                    // Enable autofocus if available
-                    if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
-                        constraints.focusMode = 'continuous';
-                    }
-
-                    // Set optimal zoom for barcode reading if available
-                    if (capabilities.zoom) {
-                        constraints.zoom = Math.min(capabilities.zoom.max, 2);
-                    }
-
-                    // Apply enhanced settings
-                    if (Object.keys(constraints).length > 0) {
-                        try {
-                            await track.applyConstraints(constraints);
-                            console.log('Applied enhanced camera constraints:', constraints);
-                        } catch (constraintError) {
-                            console.log('Could not apply enhanced constraints:', constraintError);
-                        }
-                    }
-                }
-
-                await new Promise((resolve, reject) => {
-                    video.onloadedmetadata = () => {
-                        video.play()
-                            .then(resolve)
-                            .catch(reject);
-                    };
-                    video.onerror = reject;
-
-                    // Timeout after 15 seconds for mobile
-                    setTimeout(() => reject(new Error('Video load timeout')), 15000);
-                });
-
-                console.log('Camera started successfully');
-                console.log('Video dimensions:', video.videoWidth, 'x', video.videoHeight);
-                console.log('Video track settings:', track ? track.getSettings() : 'No track info');
-
-                const scannerContainer = document.getElementById('scanner-container');
-                if (scannerContainer) {
-                    scannerContainer.classList.add('active');
-                }
-
-                const startBtn = document.getElementById('startCameraBtn');
-                const switchBtn = document.getElementById('switchCameraBtn');
-                const pauseBtn = document.getElementById('pauseScanBtn');
-
-                if (startBtn) {
-                    startBtn.textContent = 'Stop Camera';
-                    startBtn.className = 'scanner-btn danger';
-                }
-                if (switchBtn) switchBtn.disabled = false;
-                if (pauseBtn) pauseBtn.disabled = false;
+                currentStream = stream;
+                await setupVideoStream();
+                await optimizeCameraSettings();
 
                 cameraActive = true;
+                updateCameraUI(true);
 
-                // Give camera more time to stabilize and focus before starting detection
+                // Initialize scanning with device-specific delay
+                const initDelay = getDeviceInitDelay();
                 setTimeout(() => {
                     initializeScanning();
-                    updateDebugInfo(); // Update debug info after camera starts
-                }, 2000); // Increased delay for better focusing
+                    startStabilityMonitoring();
+                }, initDelay);
 
-                showStatus('Camera active - Point at barcode and hold steady', 'success');
-                updateStatusBar(`Camera scanning active (${currentFacingMode} camera)`);
+                showStatus('Camera active - Ready to scan', 'success');
 
             } catch (error) {
-                console.error('Camera error:', error);
-                logError(error, 'Camera Start');
+                console.error('Camera initialization failed:', error);
+                handleCameraError(error);
+                showRetryButton();
+            }
+        }
 
-                let errorMessage = 'Camera access failed: ';
-                switch (error.name) {
-                    case 'NotAllowedError':
-                        errorMessage += 'Permission denied. Please allow camera access and try again.';
-                        break;
-                    case 'NotFoundError':
-                        errorMessage += 'No camera found on this device.';
-                        break;
-                    case 'NotReadableError':
-                        errorMessage += 'Camera is already in use by another application.';
-                        break;
-                    case 'OverconstrainedError':
-                        errorMessage += 'Camera constraints not supported. Try switching cameras.';
-                        break;
-                    case 'SecurityError':
-                        errorMessage += 'HTTPS required for camera access.';
-                        break;
-                    default:
-                        errorMessage += error.message || 'Unknown error occurred.';
+        function getDeviceOptimizedConstraints() {
+            let constraints = {
+                video: {
+                    facingMode: currentFacingMode,
+                    width: { ideal: 1280, min: 640, max: 1920 },
+                    height: { ideal: 720, min: 480, max: 1080 },
+                    frameRate: { ideal: 30, min: 15, max: 60 }
+                },
+                audio: false
+            };
+
+            // Device-specific optimizations
+            if (deviceInfo.isSamsung) {
+                // Samsung-specific optimizations
+                constraints.video.frameRate = { ideal: 30, max: 30 };
+                if (currentFacingMode === 'environment') {
+                    constraints.video.focusMode = 'continuous';
+                    constraints.video.whiteBalanceMode = 'continuous';
+                }
+            }
+
+            if (deviceInfo.isIOS) {
+                // iOS Safari optimizations
+                constraints.video.width = { ideal: 1280, min: 320 };
+                constraints.video.height = { ideal: 720, min: 240 };
+            }
+
+            if (deviceInfo.isHuawei) {
+                // Huawei optimizations
+                constraints.video.frameRate = { ideal: 25 };
+            }
+
+            return constraints;
+        }
+
+        function getDeviceSpecificAttempts() {
+            const attempts = [];
+
+            // Primary attempt - device optimized
+            attempts.push(getDeviceOptimizedConstraints());
+
+            // Secondary attempt - relaxed constraints
+            attempts.push({
+                video: {
+                    facingMode: currentFacingMode,
+                    width: { ideal: 640, min: 320 },
+                    height: { ideal: 480, min: 240 }
+                },
+                audio: false
+            });
+
+            // Tertiary attempt - basic constraints
+            attempts.push({
+                video: { facingMode: currentFacingMode },
+                audio: false
+            });
+
+            // Final attempt - any camera
+            attempts.push({
+                video: true,
+                audio: false
+            });
+
+            return attempts;
+        }
+
+        async function setupVideoStream() {
+            const video = document.getElementById('scanner-video');
+            if (!video) throw new Error('Video element not found');
+
+            video.srcObject = currentStream;
+
+            // Device-specific video attributes
+            video.setAttribute('autoplay', '');
+            video.setAttribute('muted', '');
+            video.setAttribute('playsinline', '');
+
+            if (deviceInfo.isIOS) {
+                video.setAttribute('webkit-playsinline', '');
+            }
+
+            if (deviceInfo.isAndroid) {
+                video.setAttribute('x5-playsinline', ''); // For some Android browsers
+            }
+
+            // Wait for stable video with enhanced timeout
+            await waitForStableVideo(video);
+
+            console.log('Video stream setup complete:', {
+                dimensions: `${video.videoWidth}x${video.videoHeight}`,
+                readyState: video.readyState
+            });
+        }
+
+        async function waitForStableVideo(video) {
+            return new Promise((resolve, reject) => {
+                let stableChecks = 0;
+                const maxWait = deviceInfo.isSamsung ? 20000 : 15000; // Longer wait for Samsung
+                const startTime = Date.now();
+
+                const checkStability = () => {
+                    if (Date.now() - startTime > maxWait) {
+                        reject(new Error('Video stability timeout'));
+                        return;
+                    }
+
+                    if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+                        stableChecks++;
+                        if (stableChecks >= (deviceInfo.isSamsung ? 5 : 3)) {
+                            resolve();
+                            return;
+                        }
+                    } else {
+                        stableChecks = 0;
+                    }
+
+                    setTimeout(checkStability, 500);
+                };
+
+                video.onloadedmetadata = () => {
+                    video.play()
+                        .then(() => checkStability())
+                        .catch(reject);
+                };
+
+                video.onerror = reject;
+            });
+        }
+
+        async function optimizeCameraSettings() {
+            const track = currentStream.getVideoTracks()[0];
+            if (!track || !track.getCapabilities) return;
+
+            try {
+                const capabilities = track.getCapabilities();
+                console.log('Camera capabilities:', capabilities);
+
+                const optimizations = {};
+
+                // Universal optimizations
+                if (capabilities.focusMode) {
+                    if (capabilities.focusMode.includes('continuous')) {
+                        optimizations.focusMode = 'continuous';
+                    }
                 }
 
-                showStatus(errorMessage, 'error');
-                updateStatusBar('Camera access failed');
+                if (capabilities.exposureMode) {
+                    if (capabilities.exposureMode.includes('continuous')) {
+                        optimizations.exposureMode = 'continuous';
+                    }
+                }
+
+                // Device-specific optimizations
+                if (deviceInfo.isSamsung && capabilities.whiteBalanceMode) {
+                    if (capabilities.whiteBalanceMode.includes('continuous')) {
+                        optimizations.whiteBalanceMode = 'continuous';
+                    }
+                }
+
+                if (capabilities.zoom && capabilities.zoom.min !== undefined) {
+                    // Conservative zoom for better barcode reading
+                    optimizations.zoom = Math.max(capabilities.zoom.min, 1);
+                }
+
+                if (Object.keys(optimizations).length > 0) {
+                    await track.applyConstraints(optimizations);
+                    console.log('Applied camera optimizations:', optimizations);
+                }
+
+            } catch (error) {
+                console.log('Camera optimization error (non-critical):', error);
             }
+        }
+
+        function getDeviceInitDelay() {
+            if (deviceInfo.isSamsung) return 4000;
+            if (deviceInfo.isHuawei) return 3500;
+            if (deviceInfo.isIOS) return 3000;
+            return 2500;
+        }
+
+        function handleCameraError(error) {
+            retryCount++;
+
+            let message = `Camera error (${retryCount}/${maxRetries}): `;
+
+            switch (error.name) {
+                case 'NotAllowedError':
+                    message += 'Permission denied. Please allow camera access.';
+                    permissionStatus = 'denied';
+                    updatePermissionUI();
+                    break;
+                case 'NotFoundError':
+                    message += 'No camera found on this device.';
+                    break;
+                case 'NotReadableError':
+                    message += `Camera in use by another app. ${deviceInfo.isSamsung ? 'Close Samsung camera apps.' : 'Close other camera apps.'}`;
+                    break;
+                case 'OverconstrainedError':
+                    message += 'Camera settings not supported. Trying fallback...';
+                    if (retryCount < maxRetries) {
+                        setTimeout(() => retryCamera(), 1000);
+                        return;
+                    }
+                    break;
+                case 'SecurityError':
+                    message += 'HTTPS required for camera access.';
+                    break;
+                default:
+                    message += error.message || 'Unknown camera error.';
+            }
+
+            showStatus(message, 'error');
+
+            // Update debug info
+            logError(error, `Camera Error (${retryCount})`);
+        }
+
+        function showRetryButton() {
+            const retryBtn = document.getElementById('retryBtn');
+            if (retryBtn && retryCount < maxRetries) {
+                retryBtn.style.display = 'inline-block';
+                retryBtn.textContent = `Retry Camera (${retryCount}/${maxRetries})`;
+            }
+        }
+
+        async function retryCamera() {
+            if (retryCount >= maxRetries) {
+                showStatus('Max retries reached. Please refresh the page.', 'error');
+                return;
+            }
+
+            console.log(`Retrying camera (attempt ${retryCount + 1}/${maxRetries})`);
+
+            // Stop any existing stream
+            if (currentStream) {
+                stopCamera();
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+
+            await startCamera();
+        }
+
+        function startStabilityMonitoring() {
+            setInterval(() => {
+                if (!cameraActive) return;
+
+                const video = document.getElementById('scanner-video');
+                if (video) {
+                    const isStable = video.readyState === 4 &&
+                        video.videoWidth > 0 &&
+                        video.videoHeight > 0 &&
+                        !video.paused;
+
+                    if (!isStable) {
+                        console.log('Camera stability issue detected');
+                        // Could trigger automatic retry here
+                    }
+                }
+            }, 5000);
         }
 
         function stopCamera() {
             if (currentStream) {
-                currentStream.getTracks().forEach(track => track.stop());
+                currentStream.getTracks().forEach(track => {
+                    console.log('Stopping camera track');
+                    track.stop();
+                });
                 currentStream = null;
             }
 
@@ -888,7 +1294,6 @@
                 scanningLoop = null;
             }
 
-            // Stop Quagga if it's running
             if (quaggaInitialized) {
                 try {
                     Quagga.stop();
@@ -903,30 +1308,45 @@
                 scannerContainer.classList.remove('active');
             }
 
+            cameraActive = false;
+            scanningPaused = false;
+            updateCameraUI(false);
+
+            // Hide retry button
+            const retryBtn = document.getElementById('retryBtn');
+            if (retryBtn) retryBtn.style.display = 'none';
+
+            showStatus('Camera stopped', 'info');
+        }
+
+        function updateCameraUI(active) {
             const startBtn = document.getElementById('startCameraBtn');
             const switchBtn = document.getElementById('switchCameraBtn');
             const pauseBtn = document.getElementById('pauseScanBtn');
 
             if (startBtn) {
-                startBtn.textContent = 'Start Camera';
-                startBtn.className = 'scanner-btn';
+                startBtn.textContent = active ? 'Stop Camera' : 'Start Camera';
+                startBtn.className = active ? 'scanner-btn danger' : 'scanner-btn';
             }
-            if (switchBtn) switchBtn.disabled = true;
-            if (pauseBtn) pauseBtn.disabled = true;
+            if (switchBtn) switchBtn.disabled = !active;
+            if (pauseBtn) pauseBtn.disabled = !active;
 
-            cameraActive = false;
-            scanningPaused = false;
-
-            showStatus('Camera stopped', 'info');
-            updateStatusBar('Camera scanning stopped');
+            // Show scanner container
+            const scannerContainer = document.getElementById('scanner-container');
+            if (scannerContainer && active) {
+                scannerContainer.classList.add('active');
+            }
         }
 
         async function switchCamera() {
-            if (cameraActive) {
-                currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
-                stopCamera();
-                setTimeout(() => startCamera(), 300);
-            }
+            if (!cameraActive) return;
+
+            currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+            stopCamera();
+
+            // Device-specific delay for camera switching
+            const switchDelay = deviceInfo.isSamsung ? 1000 : 500;
+            setTimeout(() => startCamera(), switchDelay);
         }
 
         function togglePause() {
@@ -936,46 +1356,49 @@
             if (scanningPaused) {
                 btn.textContent = 'Resume Scan';
                 btn.className = 'scanner-btn success';
-                updateScannerStatus('⏸️ Scanning paused', 'info');
+                updateScannerStatus('Scanning paused', 'info');
             } else {
                 btn.textContent = 'Pause Scan';
                 btn.className = 'scanner-btn';
-                updateScannerStatus('🔍 Scanning for barcodes...', 'scanning');
+                updateScannerStatus('Scanning resumed...', 'scanning');
             }
         }
 
-        // Enhanced Mobile-Compatible Scanning Functions - CORRECTED VERSION
+        // Enhanced scanning with device-specific optimizations
         async function initializeScanning() {
-            updateScannerStatus('🔍 Initializing detection...', 'scanning');
+            updateScannerStatus('Initializing detection...', 'scanning');
 
-            // Always try QuaggaJS first as it has real barcode decoding
-            if (typeof Quagga !== 'undefined') {
+            // Try QuaggaJS first if available
+            if (libraryStatus.quagga) {
                 try {
                     await initializeQuagga();
-                    updateScannerStatus('🔍 QuaggaJS scanning active...', 'scanning');
+                    updateScannerStatus('QuaggaJS scanning active...', 'scanning');
                     return;
                 } catch (error) {
-                    console.log('QuaggaJS failed, using fallback:', error);
-                    logError(error, 'QuaggaJS Init');
+                    console.log('QuaggaJS initialization failed:', error);
                 }
             }
 
-            // Fallback to canvas-based detection (with limited real decoding)
+            // Fallback to canvas scanning
             startCanvasScanning();
-            updateScannerStatus('🔍 Canvas scanning active...', 'scanning');
+            updateScannerStatus('Canvas scanning active...', 'scanning');
         }
 
         async function initializeQuagga() {
             return new Promise((resolve, reject) => {
                 const video = document.getElementById('scanner-video');
 
-                // Wait for video to be ready
                 if (video.readyState < 2) {
-                    video.addEventListener('loadeddata', () => {
-                        setTimeout(() => initializeQuaggaCore(video, resolve, reject), 500);
-                    });
+                    const waitForVideo = () => {
+                        if (video.readyState >= 2) {
+                            setTimeout(() => initializeQuaggaCore(video, resolve, reject), 1000);
+                        } else {
+                            setTimeout(waitForVideo, 100);
+                        }
+                    };
+                    waitForVideo();
                 } else {
-                    setTimeout(() => initializeQuaggaCore(video, resolve, reject), 500);
+                    setTimeout(() => initializeQuaggaCore(video, resolve, reject), 1000);
                 }
             });
         }
@@ -987,8 +1410,8 @@
                     type: "LiveStream",
                     target: video,
                     constraints: {
-                        width: { min: 320, ideal: Math.min(640, video.videoWidth) },
-                        height: { min: 240, ideal: Math.min(480, video.videoHeight) },
+                        width: { min: 320, ideal: Math.min(800, video.videoWidth || 640) },
+                        height: { min: 240, ideal: Math.min(600, video.videoHeight || 480) },
                         facingMode: currentFacingMode
                     }
                 },
@@ -1003,15 +1426,15 @@
                     ]
                 },
                 locator: {
-                    patchSize: "medium",
-                    halfSample: true
+                    patchSize: deviceInfo.isSamsung ? "large" : "medium",
+                    halfSample: deviceInfo.isSamsung || deviceInfo.isHuawei // Performance optimization for certain devices
                 },
-                numOfWorkers: navigator.hardwareConcurrency ? Math.min(navigator.hardwareConcurrency, 2) : 1,
-                frequency: 8,
+                numOfWorkers: Math.min(deviceInfo.hardwareConcurrency, deviceInfo.isSamsung ? 1 : 2),
+                frequency: deviceInfo.isSamsung ? 5 : 8, // Slower for Samsung stability
                 debug: false
             };
 
-            console.log('Initializing QuaggaJS with config:', config);
+            console.log('Initializing QuaggaJS with device-optimized config:', config);
 
             Quagga.init(config, function (err) {
                 if (err) {
@@ -1024,14 +1447,10 @@
                 try {
                     Quagga.start();
                     quaggaInitialized = true;
-
-                    // Remove any existing handlers
                     Quagga.offDetected(handleQuaggaDetection);
-                    // Set up new detection handler
                     Quagga.onDetected(handleQuaggaDetection);
                     resolve();
                 } catch (startError) {
-                    console.error('QuaggaJS start error:', startError);
                     reject(startError);
                 }
             });
@@ -1043,9 +1462,11 @@
             const code = result.codeResult.code;
             const format = result.codeResult.format;
 
-            // Avoid duplicate rapid detections
+            // Enhanced duplicate prevention with device-specific timing
             const now = Date.now();
-            if (code === lastDetection && now - lastDetectionTime < 2000) return;
+            const minInterval = getDeviceDetectionInterval();
+
+            if (code === lastDetection && now - lastDetectionTime < minInterval) return;
 
             detectionCount++;
             lastDetection = code;
@@ -1053,25 +1474,15 @@
 
             console.log('QuaggaJS detected:', { code, format });
 
-            // Visual feedback
-            updateScannerStatus(`✅ Detected: ${code}`, 'success');
+            updateScannerStatus(`Detected: ${code}`, 'success');
+            showDetectionResult(code, `${getDeviceName()} Camera (QuaggaJS)`, 95, format.toUpperCase());
 
-            // Show results
-            showDetectionResult(code, 'Camera Detection (QuaggaJS)', 95, format.toUpperCase());
-
-            // Pause briefly to avoid spam
-            scanningPaused = true;
-            setTimeout(() => {
-                if (cameraActive) {
-                    scanningPaused = false;
-                    updateScannerStatus('🔍 Scanning for barcodes...', 'scanning');
-                }
-            }, 2500);
+            // Pause scanning with device-specific duration
+            pauseScanning(getDevicePauseDuration());
         }
 
         function startCanvasScanning() {
-            // Enhanced canvas-based scanning optimized for mobile
-            const scanInterval = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ? 800 : 500;
+            const scanInterval = getDeviceScanInterval();
 
             scanningLoop = setInterval(() => {
                 if (!scanningPaused && cameraActive) {
@@ -1079,56 +1490,51 @@
                 }
             }, scanInterval);
 
-            console.log('Canvas scanning started with', scanInterval, 'ms interval');
+            console.log(`Canvas scanning started with ${scanInterval}ms interval for ${getDeviceName()}`);
         }
 
         function scanVideoFrame() {
             const video = document.getElementById('scanner-video');
-            if (!video || video.readyState !== 4) {
-                console.log('Video not ready for scanning');
-                return;
-            }
+            if (!video || video.readyState !== 4) return;
 
             try {
                 const canvas = document.createElement('canvas');
-                const context = canvas.getContext('2d', { willReadFrequently: true }); // Optimize for frequent reads
+                const context = canvas.getContext('2d', {
+                    willReadFrequently: true,
+                    alpha: false // Performance optimization
+                });
 
-                // Use actual video dimensions
                 const width = video.videoWidth || video.clientWidth;
                 const height = video.videoHeight || video.clientHeight;
 
-                if (width === 0 || height === 0) {
-                    console.log('Invalid video dimensions:', width, 'x', height);
-                    return;
-                }
+                if (width === 0 || height === 0) return;
 
                 canvas.width = width;
                 canvas.height = height;
                 context.drawImage(video, 0, 0, width, height);
 
-                console.log('Scanning frame:', width, 'x', height);
-
-                // Try QR code detection first (most reliable)
-                if (typeof jsQR !== 'undefined') {
+                // QR detection with device-specific settings
+                if (libraryStatus.jsQR) {
                     try {
                         const imageData = context.getImageData(0, 0, width, height);
                         const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                            inversionAttempts: "dontInvert"
+                            inversionAttempts: getDeviceInversionAttempts()
                         });
 
                         if (code && code.data) {
                             const now = Date.now();
-                            if (code.data !== lastDetection || now - lastDetectionTime > 2000) {
+                            const minInterval = getDeviceDetectionInterval();
+
+                            if (code.data !== lastDetection || now - lastDetectionTime > minInterval) {
                                 detectionCount++;
                                 lastDetection = code.data;
                                 lastDetectionTime = now;
 
                                 console.log('Canvas QR detected:', code.data);
-                                updateScannerStatus(`✅ QR Code: ${code.data}`, 'success');
-                                showDetectionResult(code.data, 'Camera Detection (QR)', 90, 'QR-CODE');
+                                updateScannerStatus(`QR Code: ${code.data}`, 'success');
+                                showDetectionResult(code.data, `${getDeviceName()} Camera (QR)`, 90, 'QR-CODE');
 
-                                // Pause briefly
-                                pauseScanning(2500);
+                                pauseScanning(getDevicePauseDuration());
                                 return;
                             }
                         }
@@ -1139,8 +1545,33 @@
 
             } catch (error) {
                 console.error('Frame scanning error:', error);
-                logError(error, 'Frame Scanning');
             }
+        }
+
+        function getDeviceDetectionInterval() {
+            if (deviceInfo.isSamsung) return 3500;
+            if (deviceInfo.isHuawei) return 3000;
+            if (deviceInfo.isIOS) return 2500;
+            return 2000;
+        }
+
+        function getDevicePauseDuration() {
+            if (deviceInfo.isSamsung) return 4000;
+            if (deviceInfo.isHuawei) return 3500;
+            return 3000;
+        }
+
+        function getDeviceScanInterval() {
+            if (deviceInfo.isSamsung) return 1500;
+            if (deviceInfo.isHuawei) return 1200;
+            if (deviceInfo.isIOS) return 1000;
+            return 800;
+        }
+
+        function getDeviceInversionAttempts() {
+            if (deviceInfo.isSamsung) return "attemptBoth";
+            if (deviceInfo.isHuawei) return "attemptBoth";
+            return "dontInvert";
         }
 
         function pauseScanning(duration) {
@@ -1148,7 +1579,7 @@
             setTimeout(() => {
                 if (cameraActive) {
                     scanningPaused = false;
-                    updateScannerStatus('🔍 Scanning for barcodes...', 'scanning');
+                    updateScannerStatus('Scanning resumed...', 'scanning');
                 }
             }, duration);
         }
@@ -1164,30 +1595,7 @@
             }
         }
 
-        // Enhanced Image Analysis
-        async function analyzeImageBlob(blob, method) {
-            try {
-                showStatus('Analyzing image...', 'loading');
-                updateStatusBar('Processing image on device...');
-
-                const result = await analyzeImageFile(blob);
-
-                if (result) {
-                    showDetectionResult(result.code, method, result.confidence, result.format);
-                    showStatus(`Found: ${result.code}`, 'success');
-                    updateStatusBar(`Detection successful via ${method}`);
-                } else {
-                    showStatus('No barcode detected in image', 'error');
-                    updateStatusBar('Detection failed - try different image');
-                }
-
-            } catch (error) {
-                console.error('Image analysis error:', error);
-                showStatus('Image analysis failed: ' + error.message, 'error');
-                updateStatusBar('Analysis failed');
-            }
-        }
-
+        // Image upload and manual entry functions (same as before but with device info)
         async function uploadImage(input) {
             if (!input.files || !input.files[0]) return;
 
@@ -1197,8 +1605,23 @@
                 return;
             }
 
-            await analyzeImageBlob(file, 'Image Upload');
-            input.value = ''; // Reset input
+            try {
+                showStatus('Analyzing image...', 'loading');
+                const result = await analyzeImageFile(file);
+
+                if (result) {
+                    detectionCount++;
+                    showDetectionResult(result.code, `${getDeviceName()} Image Upload`, result.confidence, result.format);
+                    showStatus(`Found: ${result.code}`, 'success');
+                } else {
+                    showStatus('No barcode detected in image', 'error');
+                }
+
+                input.value = '';
+            } catch (error) {
+                console.error('Image analysis error:', error);
+                showStatus('Image analysis failed: ' + error.message, 'error');
+            }
         }
 
         async function analyzeImageFile(file) {
@@ -1214,26 +1637,26 @@
                         canvas.height = img.height;
                         context.drawImage(img, 0, 0);
 
-                        // Try QR detection first
-                        if (typeof jsQR !== 'undefined') {
+                        if (libraryStatus.jsQR) {
                             try {
                                 const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-                                const code = jsQR(imageData.data, imageData.width, imageData.height);
+                                const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                                    inversionAttempts: "attemptBoth"
+                                });
 
-                                if (code) {
+                                if (code && code.data) {
                                     resolve({
                                         code: code.data,
-                                        confidence: 85,
+                                        confidence: 90,
                                         format: 'QR-CODE'
                                     });
                                     return;
                                 }
                             } catch (error) {
-                                console.log('QR detection error:', error);
+                                console.log('QR detection error in image:', error);
                             }
                         }
 
-                        // No other detection for images - QuaggaJS doesn't work on static images
                         resolve(null);
                     };
                     img.src = e.target.result;
@@ -1242,7 +1665,6 @@
             });
         }
 
-        // Enhanced Manual Entry Functions
         async function validateManualEntry() {
             const input = document.getElementById('manualInput');
             const barcode = input.value.trim();
@@ -1255,32 +1677,27 @@
 
             showStatus('Validating barcode...', 'loading');
 
-            // Enhanced barcode validation with alphanumeric support
             const format = detectBarcodeFormat(barcode);
             const isValid = validateBarcodeChecksum(barcode, format);
 
             if (isValid) {
                 detectionCount++;
-                showDetectionResult(barcode, 'Manual Entry', 100, format);
-                showStatus(`✅ Valid ${format}: ${barcode}`, 'success');
-                updateStatusBar(`Valid barcode entered: ${format}`);
+                showDetectionResult(barcode, `${getDeviceName()} Manual Entry`, 100, format);
+                showStatus(`Valid ${format}: ${barcode}`, 'success');
                 input.value = '';
             } else {
-                showStatus(`❌ Invalid ${format} - format check failed`, 'error');
-                updateStatusBar('Invalid barcode format');
+                showStatus(`Invalid ${format} - checksum failed`, 'error');
             }
         }
 
         function validateBarcodeInput(input) {
             const value = input.value.trim();
-
-            // Allow alphanumeric characters for Code-128
             const cleanValue = value.replace(/[^\w]/g, '');
+
             if (cleanValue !== input.value) {
                 input.value = cleanValue;
             }
 
-            // Enhanced visual validation for different formats
             const format = detectBarcodeFormat(cleanValue);
 
             if (cleanValue.length >= 4) {
@@ -1294,16 +1711,13 @@
                     input.style.borderColor = '#ffc107';
                     input.style.boxShadow = '0 0 5px rgba(255, 193, 7, 0.3)';
                 }
-            } else if (cleanValue.length > 0) {
-                input.style.borderColor = '#ffc107';
-                input.style.boxShadow = '0 0 5px rgba(255, 193, 7, 0.3)';
             } else {
-                input.style.borderColor = '#28a745';
-                input.style.boxShadow = 'none';
+                input.style.borderColor = cleanValue.length > 0 ? '#ffc107' : '#28a745';
+                input.style.boxShadow = cleanValue.length > 0 ? '0 0 5px rgba(255, 193, 7, 0.3)' : 'none';
             }
         }
 
-        // Enhanced Results Display
+        // Enhanced results display with device info
         function showDetectionResult(barcode, method, confidence, format = null) {
             if (!barcode) return;
 
@@ -1311,7 +1725,6 @@
             const detectedFormat = format || detectBarcodeFormat(barcode);
             const validation = validateBarcodeChecksum(barcode, detectedFormat);
 
-            // Ensure results are visible
             const resultsContainer = document.getElementById('results');
 
             const resultsHTML = `
@@ -1321,6 +1734,7 @@
                             <span style="background: linear-gradient(45deg, #2196F3, #1976D2); color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">${detectedFormat}</span>
                             <span style="background: linear-gradient(45deg, #28a745, #20c997); color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">${confidence}%</span>
                             <span style="background: linear-gradient(45deg, ${validation ? '#28a745' : '#dc3545'}, ${validation ? '#20c997' : '#c82333'}); color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">${validation ? 'Valid' : 'Invalid'}</span>
+                            <span style="background: linear-gradient(45deg, #6f42c1, #563d7c); color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">${getDeviceName()}</span>
                         </div>
                         <div style="font-size: 10px; color: #6c757d; font-weight: 500;">
                             Detection #${detectionCount} - ${method}
@@ -1337,6 +1751,7 @@
                             <div style="margin-bottom: 5px;"><strong>📏 Length:</strong> <span style="color: #28a745; font-weight: 600;">${barcode.length} ${/^\d+$/.test(barcode) ? 'digits' : 'characters'}</span></div>
                             <div style="margin-bottom: 5px;"><strong>✓ Checksum:</strong> <span style="color: ${validation ? '#28a745' : '#dc3545'}; font-weight: 600;">${validation ? 'Valid' : 'Invalid'}</span></div>
                             <div style="margin-bottom: 5px;"><strong>🎯 Confidence:</strong> <span style="color: #6f42c1; font-weight: 600;">${confidence}%</span></div>
+                            <div style="margin-bottom: 5px;"><strong>📱 Device:</strong> <span style="color: #fd7e14; font-weight: 600;">${getDeviceName()} (${deviceInfo.browser})</span></div>
                             <div style="margin-bottom: 5px;"><strong>⏰ Time:</strong> <span style="color: #6c757d; font-weight: 500;">${timestamp}</span></div>
                             <div><strong>🔍 Method:</strong> <span style="color: #fd7e14; font-weight: 600;">${method}</span></div>
                         </div>
@@ -1355,7 +1770,7 @@
             resultsContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
-        // Enhanced Barcode Format Detection and Validation
+        // Barcode validation functions (same as before)
         function detectBarcodeFormat(code) {
             if (!code) return 'Unknown';
 
@@ -1363,18 +1778,12 @@
             const isNumeric = /^\d+$/.test(code);
             const isAlphanumeric = /^[A-Za-z0-9]+$/.test(code);
 
-            // Alphanumeric formats
             if (isAlphanumeric && !isNumeric) {
-                if (length >= 4 && length <= 48) {
-                    return 'CODE-128';
-                }
-                if (length >= 1 && length <= 43) {
-                    return 'CODE-39';
-                }
+                if (length >= 4 && length <= 48) return 'CODE-128';
+                if (length >= 1 && length <= 43) return 'CODE-39';
                 return 'ALPHANUMERIC';
             }
 
-            // Numeric-only formats
             if (isNumeric) {
                 switch (length) {
                     case 8: return 'EAN-8';
@@ -1396,23 +1805,13 @@
 
             try {
                 switch (format) {
-                    case 'EAN-13':
-                        return validateEAN13(code);
-                    case 'EAN-8':
-                        return validateEAN8(code);
-                    case 'UPC-A':
-                        return validateUPCA(code);
-                    case 'GTIN-14':
-                        return validateGTIN14(code);
-                    case 'CODE-128':
-                        return validateCode128(code);
-                    case 'CODE-39':
-                        return validateCode39(code);
-                    case 'ALPHANUMERIC':
-                    case 'NUMERIC':
-                    default:
-                        // For other formats, basic validation
-                        return validateBasicFormat(code, format);
+                    case 'EAN-13': return validateEAN13(code);
+                    case 'EAN-8': return validateEAN8(code);
+                    case 'UPC-A': return validateUPCA(code);
+                    case 'GTIN-14': return validateGTIN14(code);
+                    case 'CODE-128': return validateCode128(code);
+                    case 'CODE-39': return validateCode39(code);
+                    default: return validateBasicFormat(code, format);
                 }
             } catch (e) {
                 console.error('Checksum validation error:', e);
@@ -1421,40 +1820,21 @@
         }
 
         function validateCode128(code) {
-            // Code-128 validation
             if (!code || code.length < 1 || code.length > 48) return false;
-
-            // Check if contains valid characters
             const validChars = /^[A-Za-z0-9\s!"#$%&'()*+,\-.\/:;<=>?@\[\\\]^_`{|}~]+$/;
-            if (!validChars.test(code)) return false;
-
-            // Code-128 can encode almost any ASCII character
-            // For this demo, we'll accept alphanumeric + common symbols
-            return true;
+            return validChars.test(code);
         }
 
         function validateCode39(code) {
-            // Code-39 validation
             if (!code || code.length < 1 || code.length > 43) return false;
-
-            // Code-39 character set: 0-9, A-Z, space, and symbols: - . $ / + %
             const validChars = /^[0-9A-Z\s\-\.\$\/\+%]+$/;
             return validChars.test(code.toUpperCase());
         }
 
         function validateBasicFormat(code, format) {
             if (!code) return false;
-
-            // Basic validation based on format
-            if (format.startsWith('NUMERIC-')) {
-                return /^\d+$/.test(code);
-            }
-
-            if (format.startsWith('ALPHANUMERIC') || format.startsWith('MIXED-')) {
-                return /^[A-Za-z0-9]+$/.test(code);
-            }
-
-            // Default: accept if reasonable length
+            if (format.startsWith('NUMERIC-')) return /^\d+$/.test(code);
+            if (format.startsWith('ALPHANUMERIC') || format.startsWith('MIXED-')) return /^[A-Za-z0-9]+$/.test(code);
             return code.length >= 4 && code.length <= 50;
         }
 
@@ -1462,12 +1842,10 @@
             if (code.length !== 13) return false;
             const digits = code.split('').map(Number);
             const checksum = digits.pop();
-
             let sum = 0;
             for (let i = 0; i < 12; i++) {
                 sum += digits[i] * (i % 2 === 0 ? 1 : 3);
             }
-
             return (10 - (sum % 10)) % 10 === checksum;
         }
 
@@ -1475,12 +1853,10 @@
             if (code.length !== 8) return false;
             const digits = code.split('').map(Number);
             const checksum = digits.pop();
-
             let sum = 0;
             for (let i = 0; i < 7; i++) {
                 sum += digits[i] * (i % 2 === 0 ? 3 : 1);
             }
-
             return (10 - (sum % 10)) % 10 === checksum;
         }
 
@@ -1488,12 +1864,10 @@
             if (code.length !== 12) return false;
             const digits = code.split('').map(Number);
             const checksum = digits.pop();
-
             let sum = 0;
             for (let i = 0; i < 11; i++) {
                 sum += digits[i] * (i % 2 === 0 ? 3 : 1);
             }
-
             return (10 - (sum % 10)) % 10 === checksum;
         }
 
@@ -1501,16 +1875,37 @@
             if (code.length !== 14) return false;
             const digits = code.split('').map(Number);
             const checksum = digits.pop();
-
             let sum = 0;
             for (let i = 0; i < 13; i++) {
                 sum += digits[i] * (i % 2 === 0 ? 3 : 1);
             }
-
             return (10 - (sum % 10)) % 10 === checksum;
         }
 
-        // UI Helper Functions
+        // Enhanced utility functions
+        function updateDebugInfo() {
+            // Device info
+            const debugDevice = document.getElementById('debugDevice');
+            if (debugDevice) {
+                debugDevice.innerHTML = `
+                    Device: ${getDeviceName()} | OS: ${deviceInfo.isAndroid ? 'Android' : deviceInfo.isIOS ? 'iOS' : 'Other'}<br>
+                    Memory: ${deviceInfo.deviceMemory || 'Unknown'}GB | Cores: ${deviceInfo.hardwareConcurrency}<br>
+                    Screen: ${deviceInfo.screenWidth}x${deviceInfo.screenHeight} | Ratio: ${deviceInfo.pixelRatio}x
+                `;
+            }
+
+            // Other debug info updates would go here
+        }
+
+        function logError(error, context) {
+            console.error(`${context}:`, error);
+            const debugErrors = document.getElementById('debugErrors');
+            if (debugErrors) {
+                const timestamp = new Date().toLocaleTimeString();
+                debugErrors.innerHTML = `[${timestamp}] ${context}: ${error.message || error}`;
+            }
+        }
+
         function showStatus(message, type) {
             const statusDiv = document.getElementById('status');
             if (statusDiv) {
@@ -1522,18 +1917,9 @@
                 } else {
                     statusDiv.textContent = message;
                     if (type !== 'loading') {
-                        setTimeout(() => {
-                            statusDiv.style.display = 'none';
-                        }, 4000);
+                        setTimeout(() => statusDiv.style.display = 'none', 4000);
                     }
                 }
-            }
-        }
-
-        function updateStatusBar(message) {
-            const statusBarText = document.getElementById('statusBarText');
-            if (statusBarText) {
-                statusBarText.textContent = message;
             }
         }
 
@@ -1542,75 +1928,110 @@
             if (resultsContainer) {
                 resultsContainer.innerHTML = `
                     <div style="text-align: center; padding: 30px; color: #6c757d;">
-                        <div style="font-size: 2.5rem; margin-bottom: 12px;">🔍</div>
-                        <div style="font-size: 1rem; font-weight: 600;">Results cleared - ready for next scan</div>
+                        <div style="font-size: 2.5rem; margin-bottom: 12px;">🌍</div>
+                        <div style="font-size: 1rem; font-weight: 600;">Results cleared - Universal scanner ready</div>
                     </div>
                 `;
             }
             detectionCount = 0;
             lastDetection = '';
             lastDetectionTime = 0;
+            retryCount = 0;
         }
 
-        // Drag and Drop Setup
-        function setupDragAndDrop() {
-            const uploadArea = document.querySelector('.upload-section');
-            if (!uploadArea) return;
+        function toggleDebugPanel() {
+            const panel = document.getElementById('debugPanel');
+            if (!panel) return;
 
-            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                uploadArea.addEventListener(eventName, preventDefaults, false);
+            if (panel.style.display === 'none') {
+                panel.style.display = 'block';
+                updateDebugInfo();
+            } else {
+                panel.style.display = 'none';
+            }
+        }
+
+        function setupEventHandlers() {
+            // Enhanced drag and drop
+            const uploadArea = document.querySelector('.upload-section');
+            if (uploadArea) {
+                ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                    uploadArea.addEventListener(eventName, (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }, false);
+                });
+
+                uploadArea.addEventListener('drop', function (e) {
+                    const dt = e.dataTransfer;
+                    const files = dt.files;
+
+                    if (files.length > 0 && files[0].type.startsWith('image/')) {
+                        const input = document.getElementById('imageUpload');
+                        input.files = files;
+                        uploadImage(input);
+                    } else {
+                        showStatus('Please drop an image file', 'error');
+                    }
+                }, false);
+            }
+
+            // Keyboard shortcuts
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && cameraActive) {
+                    stopCamera();
+                } else if (e.key === 'Enter' && e.target.id === 'manualInput') {
+                    validateManualEntry();
+                } else if (e.key === ' ' && cameraActive) {
+                    e.preventDefault();
+                    togglePause();
+                }
             });
 
-            function preventDefaults(e) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
-
-            uploadArea.addEventListener('drop', handleDrop, false);
-
-            function handleDrop(e) {
-                const dt = e.dataTransfer;
-                const files = dt.files;
-
-                if (files.length > 0 && files[0].type.startsWith('image/')) {
-                    analyzeImageBlob(files[0], 'Drag & Drop');
-                } else {
-                    showStatus('Please drop an image file', 'error');
+            // Prevent zoom on double tap (mobile)
+            let lastTouchEnd = 0;
+            document.addEventListener('touchend', function (event) {
+                const now = (new Date()).getTime();
+                if (now - lastTouchEnd <= 300) {
+                    event.preventDefault();
                 }
-            }
+                lastTouchEnd = now;
+            }, false);
         }
 
-        // Cleanup
+        function initializeUI() {
+            document.getElementById('manualInput').focus();
+
+            // Set up periodic debug updates
+            setInterval(() => {
+                if (document.getElementById('debugPanel').style.display !== 'none') {
+                    updateDebugInfo();
+                }
+            }, 3000);
+        }
+
+        // Cleanup on page unload
         window.addEventListener('beforeunload', function () {
             if (cameraActive) {
                 stopCamera();
             }
         });
 
-        // Enhanced keyboard shortcuts
-        document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') {
-                if (cameraActive) stopCamera();
-            } else if (e.key === 'Enter' && e.target.id === 'manualInput') {
-                validateManualEntry();
-            } else if (e.key === ' ' && cameraActive) {
-                e.preventDefault();
-                togglePause();
+        // Enhanced visibility change handling
+        document.addEventListener('visibilitychange', function () {
+            if (document.hidden && cameraActive) {
+                // Pause scanning when tab is not visible
+                scanningPaused = true;
+            } else if (!document.hidden && cameraActive && scanningPaused) {
+                // Resume scanning when tab becomes visible
+                setTimeout(() => {
+                    scanningPaused = false;
+                    updateScannerStatus('Scanning resumed...', 'scanning');
+                }, 500);
             }
         });
 
-        // Prevent zoom on double tap
-        let lastTouchEnd = 0;
-        document.addEventListener('touchend', function (event) {
-            const now = (new Date()).getTime();
-            if (now - lastTouchEnd <= 300) {
-                event.preventDefault();
-            }
-            lastTouchEnd = now;
-        }, false);
-
-        // Debug logging
-        console.log('Mobile Barcode Scanner loaded with enhanced detection and mobile optimizations');
+        console.log('Universal Mobile Barcode Scanner loaded with comprehensive device support');
     </script>
 </body>
 
